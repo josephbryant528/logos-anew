@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   PASSAGES, BIBLE_BOOKS, BibleBook, OriginalWord, ScriptureVerse,
   getCommentariesForVerse, Commentary
@@ -75,23 +75,26 @@ export default function App() {
   const [sidebarOpen,    setSidebarOpen]    = useState(true);
   const [dynamicVerses,  setDynamicVerses]  = useState<ScriptureVerse[]>([]);
   const [versesLoading,  setVersesLoading]  = useState(false);
+  const [versesError,    setVersesError]    = useState<string | null>(null);
+  const chapterCache = useRef<Map<string, ScriptureVerse[]>>(new Map());
 
-  // Fetch verses for any book/chapter — prefer static PASSAGES for richly-annotated chapters
   const fetchVerses = useCallback(async (book: string, chapter: number) => {
-    const staticVerses = PASSAGES.filter(v => v.book === book && v.chapter === chapter);
-    if (staticVerses.length > 0) {
-      setDynamicVerses(staticVerses);
+    const cacheKey = `${book}:${chapter}`;
+    const cached = chapterCache.current.get(cacheKey);
+    if (cached) {
+      setDynamicVerses(cached);
+      setVersesError(null);
       return;
     }
     setVersesLoading(true);
+    setVersesError(null);
     setDynamicVerses([]);
     try {
-      // ESV API for verse text; Step Bible for interlinear Greek/Hebrew lexicon data.
       const [esvRes, lexRes] = await Promise.allSettled([
         fetch(`/api/passage?q=${encodeURIComponent(`${book} ${chapter}`)}`)
-          .then(r => r.ok ? r.json() : null),
+          .then(r => r.ok ? r.json() : Promise.reject(new Error(`ESV ${r.status}`))),
         fetch(`/api/lexicon?book=${encodeURIComponent(book)}&chapter=${chapter}`)
-          .then(r => r.ok ? r.json() : null),
+          .then(r => r.ok ? r.json() : Promise.reject(new Error(`Lexicon ${r.status}`))),
       ]);
 
       const esvData = esvRes.status === 'fulfilled' ? esvRes.value : null;
@@ -102,22 +105,30 @@ export default function App() {
       const bookMeta = BIBLE_BOOKS.find(b => b.name === book);
       const language = (bookMeta?.language ?? 'greek') as ScriptureVerse['language'];
 
+      let result: ScriptureVerse[] = [];
+
       if (lexVerses.length > 0) {
         lexVerses.forEach(v => { v.text = verseTexts[v.verse] ?? ''; v.translation = 'ESV'; });
-        // Include any verses in ESV that the interlinear didn't return
         const interlinearNums = new Set(lexVerses.map(v => v.verse));
         const textOnlyVerses: ScriptureVerse[] = Object.entries(verseTexts)
           .filter(([n]) => !interlinearNums.has(parseInt(n)))
           .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, text, translation: 'ESV', words: [] }));
-        setDynamicVerses([...lexVerses, ...textOnlyVerses].sort((a, b) => a.verse - b.verse));
+        result = [...lexVerses, ...textOnlyVerses].sort((a, b) => a.verse - b.verse);
       } else if (Object.keys(verseTexts).length > 0) {
-        // No interlinear available — ESV text only
-        setDynamicVerses(
-          Object.entries(verseTexts)
-            .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, text, translation: 'ESV', words: [] }))
-            .sort((a, b) => a.verse - b.verse)
-        );
+        result = Object.entries(verseTexts)
+          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, text, translation: 'ESV', words: [] }))
+          .sort((a, b) => a.verse - b.verse);
       }
+
+      if (result.length === 0) {
+        const esvErr = esvRes.status === 'rejected' ? (esvRes.reason as Error).message : null;
+        setVersesError(esvErr ?? 'No text available for this chapter.');
+      } else {
+        chapterCache.current.set(cacheKey, result);
+        setDynamicVerses(result);
+      }
+    } catch {
+      setVersesError('Failed to load chapter. Check your connection and try again.');
     } finally {
       setVersesLoading(false);
     }
@@ -264,9 +275,9 @@ export default function App() {
                   <div key={i} style={{ height: "24px", borderRadius: "4px", background: "var(--muted)", opacity: 0.5 + i * 0.04, animation: "pulse 1.4s ease-in-out infinite" }} />
                 ))}
               </div>
-            ) : verses.length === 0 ? (
+            ) : versesError ? (
               <div style={{ padding: "20px", borderRadius: "8px", background: "var(--muted)", fontSize: "0.875rem", color: "var(--muted-foreground)", fontFamily: BODY, fontStyle: "italic", lineHeight: 1.7 }}>
-                No text available for this chapter. Check your internet connection or try another passage.
+                {versesError}
               </div>
             ) : (
               <div>
@@ -671,7 +682,7 @@ function CommentaryTab({ commentaries, verseKey }: { commentaries: Commentary[];
   return (
     <div>
       {commentaries.length === 0 ? (
-        <p style={{ fontFamily: UI, fontSize: "0.875rem", color: "var(--muted-foreground)", fontStyle: "italic", marginBottom: "20px" }}>No commentaries indexed for {verseKey}.</p>
+        <p style={{ fontFamily: UI, fontSize: "0.875rem", color: "var(--muted-foreground)", fontStyle: "italic", marginBottom: "20px" }}>No classical commentaries are indexed for {verseKey}. Use the AI study notes below to explore this passage.</p>
       ) : (
         <div>
           <div style={{ padding: "10px 12px", borderRadius: "6px", background: "var(--muted)", marginBottom: "20px", fontSize: "0.8rem", fontFamily: UI, color: "var(--muted-foreground)", lineHeight: 1.6 }}>

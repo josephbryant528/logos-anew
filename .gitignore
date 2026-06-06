@@ -43,3 +43,9 @@ next-env.d.ts
 # smoke test artifacts
 smoke-test.mjs
 smoke-screenshots/
+
+# lexicon data — generated at build time from STEPBible CC BY 4.0 source
+/public/lexicon/
+
+# STEPBible source file cache (downloaded by build-lexicon.mjs)
+/.stepbible-data/
