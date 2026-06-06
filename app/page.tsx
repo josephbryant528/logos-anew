@@ -7,7 +7,7 @@ import {
 } from "./data/scripture";
 import {
   ChevronLeft, ChevronRight, X, Moon, Sun,
-  FileText, MessageSquare, BookOpen, ArrowLeft, Sparkles
+  FileText, MessageSquare, BookOpen, ArrowLeft, Sparkles, Send
 } from "lucide-react";
 
 const UI   = "'Inter', system-ui, sans-serif";
@@ -70,7 +70,7 @@ export default function App() {
   const [selectedChapter, setSelectedChapter] = useState(1);
   const [activeVerse,     setActiveVerse]     = useState<ScriptureVerse | null>(null);
   const [selectedWord,    setSelectedWord]    = useState<OriginalWord | null>(null);
-  const [detailTab,       setDetailTab]       = useState<"lexicon" | "commentary">("lexicon");
+  const [detailTab,       setDetailTab]       = useState<"lexicon" | "commentary" | "ai">("lexicon");
 
   const [history, setHistory] = useState<Location[]>([]);
   const [darkMode,       setDarkMode]       = useState(false);
@@ -529,15 +529,16 @@ function InterlinearStrip({ verse, selectedWord, onWordSelect }: { verse: Script
 
 function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWordSelect, onClose, onNavigateTo }: {
   verse: ScriptureVerse; commentaries: Commentary[]; selectedWord: OriginalWord | null;
-  tab: "lexicon" | "commentary"; onTabChange: (t: "lexicon" | "commentary") => void;
+  tab: "lexicon" | "commentary" | "ai"; onTabChange: (t: "lexicon" | "commentary" | "ai") => void;
   onWordSelect: (w: OriginalWord) => void; onClose: () => void;
   onNavigateTo: (book: string, chapter: number, verse: number | null, pushHistory?: boolean) => void;
 }) {
+  const verseKey = `${verse.book} ${verse.chapter}:${verse.verse}`;
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "14px 16px 0", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <span style={{ fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)" }}>{verse.book} {verse.chapter}:{verse.verse}</span>
+          <span style={{ fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)" }}>{verseKey}</span>
           <button onClick={onClose} style={iconBtn}
             onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -547,8 +548,9 @@ function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWo
         </div>
         <div style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
           {([
-            { key: "lexicon" as const,    icon: <FileText size={13} />,     label: "Lexicon" },
+            { key: "lexicon" as const,    icon: <FileText size={13} />,      label: "Lexicon" },
             { key: "commentary" as const, icon: <MessageSquare size={13} />, label: `Commentary${commentaries.length > 0 ? ` (${commentaries.length})` : ""}` },
+            { key: "ai" as const,         icon: <Sparkles size={13} />,      label: "AI Study" },
           ]).map(t => (
             <button key={t.key} onClick={() => onTabChange(t.key)} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.8rem", color: tab === t.key ? "var(--foreground)" : "var(--muted-foreground)", borderBottom: tab === t.key ? "2px solid var(--foreground)" : "2px solid transparent", marginBottom: "-1px" }}>
               {t.icon} {t.label}
@@ -556,10 +558,9 @@ function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWo
           ))}
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-        {tab === "lexicon"    && <LexiconTab    verse={verse} selectedWord={selectedWord} onWordSelect={onWordSelect} onNavigateTo={onNavigateTo} />}
-        {tab === "commentary" && <CommentaryTab commentaries={commentaries} verseKey={`${verse.book} ${verse.chapter}:${verse.verse}`} />}
-      </div>
+      {tab === "lexicon"    && <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}><LexiconTab verse={verse} selectedWord={selectedWord} onWordSelect={onWordSelect} onNavigateTo={onNavigateTo} /></div>}
+      {tab === "commentary" && <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}><CommentaryTab commentaries={commentaries} verseKey={verseKey} /></div>}
+      {tab === "ai"         && <AIStudyTab verse={verse} verseKey={verseKey} />}
     </div>
   );
 }
@@ -679,33 +680,12 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo }: {
 // ── Commentary tab ────────────────────────────────────────────────────────────
 
 function CommentaryTab({ commentaries, verseKey }: { commentaries: Commentary[]; verseKey: string }) {
-  const [aiResult, setAiResult] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState("");
-
-  async function fetchAiNotes() {
-    setAiLoading(true);
-    setAiError("");
-    try {
-      const res = await fetch("/api/study", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passage: verseKey }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Request failed.");
-      setAiResult(data.result);
-    } catch (err: unknown) {
-      setAiError(err instanceof Error ? err.message : "Request failed.");
-    } finally {
-      setAiLoading(false);
-    }
-  }
-
   return (
     <div>
       {commentaries.length === 0 ? (
-        <p style={{ fontFamily: UI, fontSize: "0.875rem", color: "var(--muted-foreground)", fontStyle: "italic", marginBottom: "20px" }}>No classical commentaries are indexed for {verseKey}. Use the AI study notes below to explore this passage.</p>
+        <p style={{ fontFamily: UI, fontSize: "0.875rem", color: "var(--muted-foreground)", fontStyle: "italic" }}>
+          No classical commentaries are indexed for {verseKey}. Try the AI Study tab to explore this passage.
+        </p>
       ) : (
         <div>
           <div style={{ padding: "10px 12px", borderRadius: "6px", background: "var(--muted)", marginBottom: "20px", fontSize: "0.8rem", fontFamily: UI, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
@@ -725,30 +705,162 @@ function CommentaryTab({ commentaries, verseKey }: { commentaries: Commentary[];
           ))}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* AI Study Notes */}
-      <div style={{ marginTop: commentaries.length > 0 ? "24px" : "0", borderTop: commentaries.length > 0 ? "1px solid var(--border)" : "none", paddingTop: commentaries.length > 0 ? "20px" : "0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
-          <Sparkles size={13} style={{ color: "var(--accent)" }} />
-          <span style={{ fontFamily: UI, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)" }}>
-            AI Study Notes
-          </span>
-        </div>
-        {!aiResult && (
-          <button
-            onClick={fetchAiNotes}
-            disabled={aiLoading}
-            style={{ padding: "6px 14px", borderRadius: "4px", border: "1px solid var(--border)", background: "transparent", cursor: aiLoading ? "default" : "pointer", fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)", opacity: aiLoading ? 0.6 : 1 }}
-          >
-            {aiLoading ? "Generating…" : "Generate study notes"}
-          </button>
-        )}
-        {aiError && <p style={{ fontFamily: UI, fontSize: "0.8rem", color: "var(--destructive)", marginTop: "8px" }}>{aiError}</p>}
-        {aiResult && (
-          <div style={{ fontFamily: BODY, fontSize: "0.9rem", lineHeight: 1.8, color: "var(--foreground)", whiteSpace: "pre-wrap" }}>
-            <BadgedText text={aiResult} />
+// ── AI Study tab ──────────────────────────────────────────────────────────────
+
+interface ChatMessage { role: "user" | "assistant"; content: string }
+
+const SUGGESTED_PROMPTS = [
+  "Give me a brief overview of this passage.",
+  "What are the key theological themes here?",
+  "Explain the historical and cultural context.",
+  "What does this passage teach about God's character?",
+]
+
+function AIStudyTab({ verse, verseKey }: { verse: ScriptureVerse; verseKey: string }) {
+  const [messages,  setMessages]  = useState<ChatMessage[]>([]);
+  const [input,     setInput]     = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
+
+  // Reset conversation when the verse changes
+  const prevVerseKey = useRef(verseKey);
+  if (prevVerseKey.current !== verseKey) {
+    prevVerseKey.current = verseKey;
+    // Can't call setMessages directly during render, use an effect below
+  }
+  useEffect(() => {
+    setMessages([]);
+    setInput("");
+    setError("");
+  }, [verseKey]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  async function send(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+    setInput("");
+    setError("");
+    const userMsg: ChatMessage = { role: "user", content: trimmed };
+    const next = [...messages, userMsg];
+    setMessages(next);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/study", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ passage: verseKey, messages: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      setMessages(prev => [...prev, { role: "assistant", content: data.result }]);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Request failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send(input);
+    }
+  }
+
+  const empty = messages.length === 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", overflow: "hidden" }}>
+      {/* Messages area */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        {empty && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <p style={{ fontFamily: UI, fontSize: "0.85rem", color: "var(--muted-foreground)", lineHeight: 1.6, margin: 0 }}>
+              Ask anything about <strong style={{ color: "var(--foreground)" }}>{verseKey}</strong> — context, themes, language, theology.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {SUGGESTED_PROMPTS.map(p => (
+                <button key={p} onClick={() => send(p)}
+                  style={{ textAlign: "left", padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)", lineHeight: 1.5 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >{p}</button>
+              ))}
+            </div>
           </div>
         )}
+
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
+            <span style={{ fontFamily: UI, fontSize: "0.68rem", color: "var(--muted-foreground)", marginBottom: "2px" }}>
+              {m.role === "user" ? "You" : "AI Study"}
+            </span>
+            <div style={{
+              maxWidth: "90%",
+              padding: "10px 13px",
+              borderRadius: m.role === "user" ? "12px 12px 2px 12px" : "12px 12px 12px 2px",
+              background: m.role === "user" ? "var(--foreground)" : "var(--muted)",
+              color:      m.role === "user" ? "var(--background)" : "var(--foreground)",
+              fontFamily: BODY,
+              fontSize:   "0.875rem",
+              lineHeight: 1.75,
+              whiteSpace: "pre-wrap",
+            }}>
+              {m.role === "assistant" ? <BadgedText text={m.content} /> : m.content}
+            </div>
+          </div>
+        ))}
+
+        {loading && (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ fontFamily: UI, fontSize: "0.68rem", color: "var(--muted-foreground)" }}>AI Study</span>
+            <div style={{ display: "flex", gap: "3px", paddingLeft: "4px" }}>
+              {[0,1,2].map(i => (
+                <span key={i} style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--muted-foreground)", opacity: 0.5, animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <p style={{ fontFamily: UI, fontSize: "0.8rem", color: "var(--destructive)", margin: 0 }}>{error}</p>
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input bar */}
+      <div style={{ padding: "12px 16px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "8px", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--background)" }}>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
+            onKeyDown={handleKey}
+            placeholder={`Ask about ${verseKey}…`}
+            rows={1}
+            style={{ flex: 1, resize: "none", border: "none", outline: "none", background: "transparent", fontFamily: UI, fontSize: "0.875rem", color: "var(--foreground)", lineHeight: 1.5, maxHeight: "120px", overflow: "auto" }}
+          />
+          <button
+            onClick={() => send(input)}
+            disabled={!input.trim() || loading}
+            style={{ flexShrink: 0, padding: "6px", borderRadius: "6px", border: "none", background: input.trim() && !loading ? "var(--foreground)" : "transparent", cursor: input.trim() && !loading ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}
+          >
+            <Send size={14} style={{ color: input.trim() && !loading ? "var(--background)" : "var(--muted-foreground)" }} />
+          </button>
+        </div>
+        <p style={{ fontFamily: UI, fontSize: "0.68rem", color: "var(--muted-foreground)", margin: "6px 0 0", textAlign: "center" }}>
+          Shift+Enter for new line · Enter to send · 20 messages/hr
+        </p>
       </div>
     </div>
   );

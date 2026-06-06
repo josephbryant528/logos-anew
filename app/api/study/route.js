@@ -1,37 +1,32 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { headers } from 'next/headers'
 
-// In-memory rate limit store: { ip -> { count, resetAt } }
 const rateLimitStore = new Map()
-
-const RATE_LIMIT = 20
+const RATE_LIMIT     = 20
 const RATE_WINDOW_MS = 60 * 60 * 1000
 
 function checkRateLimit(ip) {
-  const now = Date.now()
+  const now   = Date.now()
   const entry = rateLimitStore.get(ip)
-
   if (!entry || now > entry.resetAt) {
     rateLimitStore.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS })
     return true
   }
-
-  if (entry.count >= RATE_LIMIT) {
-    return false
-  }
-
+  if (entry.count >= RATE_LIMIT) return false
   entry.count++
   return true
 }
 
-const SYSTEM_PROMPT = `You are a biblical study assistant. Only reference scripture labeled as [SCRIPTURE: ref ESV] and approved public-domain commentaries labeled as [COMMENTARY: Author]. Never introduce theological claims without a source label.
+function buildSystemPrompt(passage) {
+  return `You are a biblical study assistant helping the user study ${passage} (ESV).
 
-When given a passage, generate:
-1. A 2-sentence passage summary (label any scripture references as [SCRIPTURE: ref ESV])
-2. 3 key word studies with original language terms and Strong's numbers
-3. 3 discussion questions
-
-Format each section clearly with headings.`
+Guidelines:
+- Ground every claim in Scripture, labeling references as [SCRIPTURE: ref ESV]
+- When citing a commentary, label it as [COMMENTARY: Author]
+- Be conversational but theologically careful
+- Keep responses focused and appropriately concise
+- You may draw on original Greek/Hebrew vocabulary with Strong's numbers when relevant`
+}
 
 export async function POST(request) {
   const headersList = await headers()
@@ -41,10 +36,7 @@ export async function POST(request) {
     'unknown'
 
   if (!checkRateLimit(ip)) {
-    return Response.json(
-      { error: 'Rate limit exceeded. Try again in an hour.' },
-      { status: 429 }
-    )
+    return Response.json({ error: 'Rate limit exceeded. Try again in an hour.' }, { status: 429 })
   }
 
   let body
@@ -54,25 +46,27 @@ export async function POST(request) {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { passage, question } = body
+  const { passage, messages } = body
 
   if (!passage) {
     return Response.json({ error: 'passage is required.' }, { status: 400 })
   }
 
-  const userMessage = question
-    ? `Passage context: ${passage}\n\nQuestion: ${question}`
-    : `Please study this passage: ${passage}`
+  // messages is an array of { role: 'user' | 'assistant', content: string }
+  // Each user turn already has the question; we pass history directly.
+  const history = Array.isArray(messages) && messages.length > 0
+    ? messages
+    : [{ role: 'user', content: `Please give me a brief study overview of this passage.` }]
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   let message
   try {
     message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
+      model:      'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system:     buildSystemPrompt(passage),
+      messages:   history,
     })
   } catch (err) {
     const status = err.status ?? 500
@@ -81,6 +75,5 @@ export async function POST(request) {
   }
 
   const text = message.content[0]?.type === 'text' ? message.content[0].text : ''
-
   return Response.json({ result: text })
 }
