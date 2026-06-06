@@ -306,10 +306,11 @@ export default function App() {
   );
 }
 
-// ESV API returns a single passage string with inline markers: "[1] text [2] text..."
+// ESV API returns verse numbers as "(1)" — split the passage block into individual verses.
 function splitEsvIntoVerses(passage: string): Record<number, string> {
   const result: Record<number, string> = {};
-  const regex = /\[(\d+)\]\s*([\s\S]*?)(?=\[\d+\]|$)/g;
+  // Matches both (1) and [1] style markers
+  const regex = /[\[(](\d+)[\])]\s*([\s\S]*?)(?=[\[(]\d+[\])]|$)/g;
   let m: RegExpExecArray | null;
   while ((m = regex.exec(passage)) !== null) {
     const text = m[2].replace(/\s+/g, ' ').trim();

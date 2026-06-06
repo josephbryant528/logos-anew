@@ -10,7 +10,7 @@ export async function GET(request) {
     q: ref,
     'include-headings': 'false',
     'include-footnotes': 'false',
-    'include-verse-numbers': 'false',
+    'include-verse-numbers': 'true',
     'include-short-copyright': 'false',
     'include-copyright': 'false',
     'include-passage-references': 'false',
