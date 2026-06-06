@@ -103,18 +103,18 @@ export default function App() {
       const language = (bookMeta?.language ?? 'greek') as ScriptureVerse['language'];
 
       if (lexVerses.length > 0) {
-        lexVerses.forEach(v => { v.esv = verseTexts[v.verse] ?? ''; v.kjv = ''; });
+        lexVerses.forEach(v => { v.text = verseTexts[v.verse] ?? ''; v.translation = 'ESV'; });
         // Include any verses in ESV that the interlinear didn't return
         const interlinearNums = new Set(lexVerses.map(v => v.verse));
         const textOnlyVerses: ScriptureVerse[] = Object.entries(verseTexts)
           .filter(([n]) => !interlinearNums.has(parseInt(n)))
-          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, esv: text, kjv: '', words: [] }));
+          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, text, translation: 'ESV', words: [] }));
         setDynamicVerses([...lexVerses, ...textOnlyVerses].sort((a, b) => a.verse - b.verse));
       } else if (Object.keys(verseTexts).length > 0) {
         // No interlinear available — ESV text only
         setDynamicVerses(
           Object.entries(verseTexts)
-            .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, esv: text, kjv: '', words: [] }))
+            .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, text, translation: 'ESV', words: [] }))
             .sort((a, b) => a.verse - b.verse)
         );
       }
@@ -448,7 +448,7 @@ function VerseRow({ verse, isActive, selectedWord, commentaryCount, onToggle, on
     >
       <button onClick={onToggle} style={{ width: "100%", textAlign: "left", display: "flex", gap: "12px", padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", outline: "none", borderRadius: "6px" }}>
         <span style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--muted-foreground)", minWidth: "24px", paddingTop: "5px", flexShrink: 0, userSelect: "none" }}>{verse.verse}</span>
-        <span style={{ fontFamily: BODY, fontSize: "1rem", lineHeight: 1.85, color: "var(--foreground)", flex: 1 }}>{verse.esv}</span>
+        <span style={{ fontFamily: BODY, fontSize: "1rem", lineHeight: 1.85, color: "var(--foreground)", flex: 1 }}>{verse.text}</span>
         <div style={{ display: "flex", alignItems: "flex-start", gap: "4px", paddingTop: "4px", flexShrink: 0, opacity: hovered || isActive ? 1 : 0, transition: "opacity 0.1s" }}>
           <Chip>Lexicon</Chip>
           {commentaryCount > 0 && <Chip>{commentaryCount} note{commentaryCount !== 1 ? "s" : ""}</Chip>}
@@ -619,7 +619,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo }: {
                   </span>
                 </div>
                 <p style={{ fontFamily: BODY, fontSize: "0.82rem", lineHeight: 1.65, color: "var(--muted-foreground)", margin: 0 }}>
-                  {refVerse.esv}
+                  {refVerse.text}
                 </p>
               </button>
             ))}

@@ -16,8 +16,8 @@ export interface ScriptureVerse {
   verse: number;
   language: "greek" | "hebrew";
   words: OriginalWord[];
-  esv: string;
-  kjv: string;
+  text: string;
+  translation: string;
 }
 
 export interface Commentary {
@@ -33,8 +33,8 @@ export const PASSAGES: ScriptureVerse[] = [
   // John 1:1–3 (Greek)
   {
     book: "John", chapter: 1, verse: 1, language: "greek",
-    esv: "In the beginning was the Word, and the Word was with God, and the Word was God.",
-    kjv: "In the beginning was the Word, and the Word was with God, and the Word was God.",
+    text:"In the beginning was the Word, and the Word was with God, and the Word was God.",
+    translation: "ESV",
     words: [
       { id: "jn1.1.1", original: "Ἐν", transliteration: "En", gloss: "In", lemma: "ἐν", strongsNumber: "G1722", partOfSpeech: "Preposition", parsing: "prep", extendedDefinition: "A primary preposition denoting position (in place, time or state)." },
       { id: "jn1.1.2", original: "ἀρχῇ", transliteration: "archē", gloss: "beginning", lemma: "ἀρχή", strongsNumber: "G746", partOfSpeech: "Noun", parsing: "N-DSF", extendedDefinition: "Beginning, origin, first cause. Used in LXX Gen 1:1 for the commencement of creation." },
@@ -57,8 +57,8 @@ export const PASSAGES: ScriptureVerse[] = [
   },
   {
     book: "John", chapter: 1, verse: 2, language: "greek",
-    esv: "He was in the beginning with God.",
-    kjv: "The same was in the beginning with God.",
+    text:"He was in the beginning with God.",
+    translation: "ESV",
     words: [
       { id: "jn1.2.1", original: "οὗτος", transliteration: "houtos", gloss: "This one / He", lemma: "οὗτος", strongsNumber: "G3778", partOfSpeech: "Pronoun", parsing: "P-NMS", extendedDefinition: "Demonstrative pronoun referring back to the Logos of v. 1, confirming continuity of subject." },
       { id: "jn1.2.2", original: "ἦν", transliteration: "ēn", gloss: "was", lemma: "εἰμί", strongsNumber: "G1510", partOfSpeech: "Verb", parsing: "V-IIA-3S", extendedDefinition: "Continuous past existence, reinforcing the pre-existence stated in v. 1." },
@@ -71,8 +71,8 @@ export const PASSAGES: ScriptureVerse[] = [
   },
   {
     book: "John", chapter: 1, verse: 3, language: "greek",
-    esv: "All things were made through him, and without him was not any thing made that was made.",
-    kjv: "All things were made by him; and without him was not any thing made that was made.",
+    text:"All things were made through him, and without him was not any thing made that was made.",
+    translation: "ESV",
     words: [
       { id: "jn1.3.1", original: "πάντα", transliteration: "panta", gloss: "All things", lemma: "πᾶς", strongsNumber: "G3956", partOfSpeech: "Adjective", parsing: "Adj-ANP", extendedDefinition: "All, every, the whole. Used substantively here as the direct object." },
       { id: "jn1.3.2", original: "δι'", transliteration: "di'", gloss: "through", lemma: "διά", strongsNumber: "G1223", partOfSpeech: "Preposition", parsing: "prep", extendedDefinition: "Through, by means of. The Word is the instrumental agent of creation, not its initiator — a nuance distinguishing the Son from the Father in Trinitarian thought." },
@@ -89,8 +89,8 @@ export const PASSAGES: ScriptureVerse[] = [
   // Genesis 1:1–3 (Hebrew)
   {
     book: "Genesis", chapter: 1, verse: 1, language: "hebrew",
-    esv: "In the beginning, God created the heavens and the earth.",
-    kjv: "In the beginning God created the heaven and the earth.",
+    text:"In the beginning, God created the heavens and the earth.",
+    translation: "ESV",
     words: [
       { id: "gn1.1.1", original: "בְּרֵאשִׁית", transliteration: "bə·rê·šîṯ", gloss: "In the beginning", lemma: "רֵאשִׁית", strongsNumber: "H7225", partOfSpeech: "Noun", parsing: "N-fsc", extendedDefinition: "Beginning, first, chief. The construct form with prefixed preposition bet. Unlike John 1:1, the article is absent in Hebrew, suggesting 'in a beginning' — though Jewish tradition interprets this as the absolute beginning of time." },
       { id: "gn1.1.2", original: "בָּרָא", transliteration: "bā·rā", gloss: "created", lemma: "בָּרָא", strongsNumber: "H1254", partOfSpeech: "Verb", parsing: "V-Qal-Perf-3ms", extendedDefinition: "Create. Crucially, this verb in the Qal stem is used exclusively with God as subject in the OT — never of human making. It implies production without prior material (creatio ex nihilo), though the text does not explicitly state this." },
@@ -103,8 +103,8 @@ export const PASSAGES: ScriptureVerse[] = [
   },
   {
     book: "Genesis", chapter: 1, verse: 2, language: "hebrew",
-    esv: "The earth was without form and void, and darkness was over the face of the deep. And the Spirit of God was hovering over the face of the waters.",
-    kjv: "And the earth was without form, and void; and darkness was upon the face of the deep. And the Spirit of God moved upon the face of the waters.",
+    text:"The earth was without form and void, and darkness was over the face of the deep. And the Spirit of God was hovering over the face of the waters.",
+    translation: "ESV",
     words: [
       { id: "gn1.2.1", original: "וְהָאָרֶץ", transliteration: "wə·hā·ʾā·reṣ", gloss: "Now the earth", lemma: "אֶרֶץ", strongsNumber: "H776", partOfSpeech: "Noun", parsing: "N-fs-def+conj", extendedDefinition: "The conjunction here (waw-disjunctive) introduces a circumstantial clause describing the state of the earth at the time of v. 1's creation — likely describing the initial unformed state." },
       { id: "gn1.2.2", original: "הָיְתָה", transliteration: "hā·yə·ṯāh", gloss: "was", lemma: "הָיָה", strongsNumber: "H1961", partOfSpeech: "Verb", parsing: "V-Qal-Perf-3fs", extendedDefinition: "Was, became, existed. The qal perfect of hayah. 'Became' is a possible translation (hayah often marks change of state), leading some to propose a gap between v.1 and v.2 — the 'Gap Theory' — though most scholars read this as simple description of the initial state." },
@@ -117,8 +117,8 @@ export const PASSAGES: ScriptureVerse[] = [
   },
   {
     book: "Genesis", chapter: 1, verse: 3, language: "hebrew",
-    esv: 'And God said, "Let there be light," and there was light.',
-    kjv: "And God said, Let there be light: and there was light.",
+    text:'And God said, "Let there be light," and there was light.',
+    translation: "ESV",
     words: [
       { id: "gn1.3.1", original: "וַיֹּאמֶר", transliteration: "way·yō·mer", gloss: "And said", lemma: "אָמַר", strongsNumber: "H559", partOfSpeech: "Verb", parsing: "V-Qal-ConsecImpf-3ms", extendedDefinition: "Said. The waw-consecutive imperfect drives the narrative forward — the main story line resumes. God's speech is the mechanism of creation in v. 3–25; speech creates reality." },
       { id: "gn1.3.2", original: "אֱלֹהִים", transliteration: "ʾĕ·lō·hîm", gloss: "God", lemma: "אֱלֹהִים", strongsNumber: "H430", partOfSpeech: "Noun", parsing: "N-mp", extendedDefinition: "God — the subject of the creative speech." },

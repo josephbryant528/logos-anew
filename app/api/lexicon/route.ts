@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
     chapter: data.c,
     verse: verseNum,
     language,
-    esv: '',
-    kjv: '',
+    text: '',
+    translation: 'ESV',
     words: words.map(([original, transliteration, gloss, lemma, strongsNumber, posCode, parsing, extendedDefinition], idx) => ({
       id: `${bookSlug(data.b)}.${data.c}.${verseNum}.${idx + 1}`,
       original,
