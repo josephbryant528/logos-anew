@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   PASSAGES, BIBLE_BOOKS, BibleBook, OriginalWord, ScriptureVerse,
   getCommentariesForVerse, Commentary
@@ -71,13 +71,64 @@ export default function App() {
   const [detailTab,       setDetailTab]       = useState<"lexicon" | "commentary">("lexicon");
 
   const [history, setHistory] = useState<Location[]>([]);
-  const [darkMode,    setDarkMode]    = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [darkMode,       setDarkMode]       = useState(false);
+  const [sidebarOpen,    setSidebarOpen]    = useState(true);
+  const [dynamicVerses,  setDynamicVerses]  = useState<ScriptureVerse[]>([]);
+  const [versesLoading,  setVersesLoading]  = useState(false);
 
-  const verses = useMemo(
-    () => PASSAGES.filter(v => v.book === selectedBook && v.chapter === selectedChapter),
-    [selectedBook, selectedChapter]
-  );
+  // Fetch verses for any book/chapter — prefer static PASSAGES for richly-annotated chapters
+  const fetchVerses = useCallback(async (book: string, chapter: number) => {
+    const staticVerses = PASSAGES.filter(v => v.book === book && v.chapter === chapter);
+    if (staticVerses.length > 0) {
+      setDynamicVerses(staticVerses);
+      return;
+    }
+    setVersesLoading(true);
+    setDynamicVerses([]);
+    try {
+      // Fetch ESV text and Step Bible interlinear in parallel
+      const [esvRes, lexRes] = await Promise.allSettled([
+        fetch(`/api/passage?q=${encodeURIComponent(`${book} ${chapter}`)}`).then(r => r.ok ? r.json() : null),
+        fetch(`/api/lexicon?book=${encodeURIComponent(book)}&chapter=${chapter}`).then(r => r.ok ? r.json() : null),
+      ]);
+
+      const esvData  = esvRes.status  === 'fulfilled' ? esvRes.value  : null;
+      const lexData  = lexRes.status  === 'fulfilled' ? lexRes.value  : null;
+
+      const lexVerses: ScriptureVerse[] = lexData?.verses ?? [];
+      const rawEsv: string = esvData?.passage ?? '';
+
+      if (lexVerses.length > 0) {
+        // Attach ESV text — the ESV passage is one block; we distribute it per verse
+        if (rawEsv) {
+          const esvLines = splitEsvIntoVerses(rawEsv);
+          lexVerses.forEach(v => {
+            v.esv = esvLines[v.verse] ?? '';
+            v.kjv = '';
+          });
+        }
+        setDynamicVerses(lexVerses);
+      } else if (rawEsv) {
+        // No interlinear data — show ESV-only verses so the text renders
+        const esvLines = splitEsvIntoVerses(rawEsv);
+        const bookMeta = BIBLE_BOOKS.find(b => b.name === book);
+        const language = (bookMeta?.language ?? 'greek') as ScriptureVerse['language'];
+        const esvVerses: ScriptureVerse[] = Object.entries(esvLines).map(([verseStr, text]) => ({
+          book, chapter, verse: parseInt(verseStr), language,
+          esv: text, kjv: '', words: [],
+        }));
+        setDynamicVerses(esvVerses.sort((a, b) => a.verse - b.verse));
+      }
+    } finally {
+      setVersesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchVerses(selectedBook, selectedChapter);
+  }, [selectedBook, selectedChapter, fetchVerses]);
+
+  const verses = dynamicVerses;
 
   const commentaries = useMemo(() => {
     if (!activeVerse) return [];
@@ -94,7 +145,7 @@ export default function App() {
     setSelectedBook(book);
     setSelectedChapter(chapter);
     if (verse !== null) {
-      const target = PASSAGES.find(v => v.book === book && v.chapter === chapter && v.verse === verse);
+      const target = dynamicVerses.find(v => v.book === book && v.chapter === chapter && v.verse === verse);
       setActiveVerse(target ?? null);
     } else {
       setActiveVerse(null);
@@ -109,7 +160,7 @@ export default function App() {
     setSelectedBook(prev.book);
     setSelectedChapter(prev.chapter);
     if (prev.verse !== null) {
-      const target = PASSAGES.find(v => v.book === prev.book && v.chapter === prev.chapter && v.verse === prev.verse);
+      const target = dynamicVerses.find(v => v.book === prev.book && v.chapter === prev.chapter && v.verse === prev.verse);
       setActiveVerse(target ?? null);
     } else {
       setActiveVerse(null);
@@ -208,12 +259,15 @@ export default function App() {
             </p>
             <div style={{ height: "1px", background: "var(--border)", marginBottom: "32px" }} />
 
-            {verses.length === 0 ? (
+            {versesLoading ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} style={{ height: "24px", borderRadius: "4px", background: "var(--muted)", opacity: 0.5 + i * 0.04, animation: "pulse 1.4s ease-in-out infinite" }} />
+                ))}
+              </div>
+            ) : verses.length === 0 ? (
               <div style={{ padding: "20px", borderRadius: "8px", background: "var(--muted)", fontSize: "0.875rem", color: "var(--muted-foreground)", fontFamily: BODY, fontStyle: "italic", lineHeight: 1.7 }}>
-                This chapter is not yet indexed. Try{" "}
-                <strong style={{ color: "var(--foreground)", cursor: "pointer" }} onClick={() => navigateTo("John", 1, null, false)}>John 1</strong>
-                {" "}or{" "}
-                <strong style={{ color: "var(--foreground)", cursor: "pointer" }} onClick={() => navigateTo("Genesis", 1, null, false)}>Genesis 1</strong>.
+                No text available for this chapter. Check your internet connection or try another passage.
               </div>
             ) : (
               <div>
@@ -251,6 +305,24 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+// Splits a multi-verse ESV passage string into { verseNumber: text } map.
+// ESV API returns plain text like: "[1] In the beginning... [2] And God said..."
+function splitEsvIntoVerses(passage: string): Record<number, string> {
+  const result: Record<number, string> = {};
+  const regex = /\[(\d+)\]\s*([\s\S]*?)(?=\[\d+\]|$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(passage)) !== null) {
+    const verseNum = parseInt(m[1]);
+    const text = m[2].replace(/\s+/g, ' ').trim();
+    if (text) result[verseNum] = text;
+  }
+  // If no verse markers found, treat entire passage as verse 1
+  if (Object.keys(result).length === 0 && passage.trim()) {
+    result[1] = passage.trim();
+  }
+  return result;
 }
 
 function langLabel(lang: string) {
