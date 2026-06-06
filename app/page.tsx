@@ -86,38 +86,48 @@ export default function App() {
     setVersesLoading(true);
     setDynamicVerses([]);
     try {
-      // Fetch ESV text and Step Bible interlinear in parallel
-      const [esvRes, lexRes] = await Promise.allSettled([
-        fetch(`/api/passage?q=${encodeURIComponent(`${book} ${chapter}`)}`).then(r => r.ok ? r.json() : null),
-        fetch(`/api/lexicon?book=${encodeURIComponent(book)}&chapter=${chapter}`).then(r => r.ok ? r.json() : null),
+      // bible-api.com is keyless (WEB translation, public domain) — always works.
+      // Step Bible provides interlinear Greek/Hebrew data.
+      // Run both in parallel; merge results.
+      const [bibleRes, lexRes] = await Promise.allSettled([
+        fetch(`https://bible-api.com/${encodeURIComponent(`${book} ${chapter}`)}?translation=web`)
+          .then(r => r.ok ? r.json() : null),
+        fetch(`/api/lexicon?book=${encodeURIComponent(book)}&chapter=${chapter}`)
+          .then(r => r.ok ? r.json() : null),
       ]);
 
-      const esvData  = esvRes.status  === 'fulfilled' ? esvRes.value  : null;
-      const lexData  = lexRes.status  === 'fulfilled' ? lexRes.value  : null;
+      const bibleData = bibleRes.status === 'fulfilled' ? bibleRes.value : null;
+      const lexData   = lexRes.status   === 'fulfilled' ? lexRes.value   : null;
+
+      // Build verse text map from bible-api.com
+      const verseTexts: Record<number, string> = {};
+      for (const v of (bibleData?.verses ?? [])) {
+        verseTexts[v.verse] = (v.text as string).replace(/\n/g, ' ').trim();
+      }
 
       const lexVerses: ScriptureVerse[] = lexData?.verses ?? [];
-      const rawEsv: string = esvData?.passage ?? '';
+      const bookMeta = BIBLE_BOOKS.find(b => b.name === book);
+      const language = (bookMeta?.language ?? 'greek') as ScriptureVerse['language'];
 
       if (lexVerses.length > 0) {
-        // Attach ESV text — the ESV passage is one block; we distribute it per verse
-        if (rawEsv) {
-          const esvLines = splitEsvIntoVerses(rawEsv);
-          lexVerses.forEach(v => {
-            v.esv = esvLines[v.verse] ?? '';
-            v.kjv = '';
-          });
-        }
-        setDynamicVerses(lexVerses);
-      } else if (rawEsv) {
-        // No interlinear data — show ESV-only verses so the text renders
-        const esvLines = splitEsvIntoVerses(rawEsv);
-        const bookMeta = BIBLE_BOOKS.find(b => b.name === book);
-        const language = (bookMeta?.language ?? 'greek') as ScriptureVerse['language'];
-        const esvVerses: ScriptureVerse[] = Object.entries(esvLines).map(([verseStr, text]) => ({
-          book, chapter, verse: parseInt(verseStr), language,
-          esv: text, kjv: '', words: [],
+        // Attach verse text to interlinear verses
+        lexVerses.forEach(v => {
+          v.esv = verseTexts[v.verse] ?? '';
+          v.kjv = '';
+        });
+        // Fill any verses present in bible-api but missing from interlinear
+        const interlinearNums = new Set(lexVerses.map(v => v.verse));
+        const textOnlyVerses = Object.entries(verseTexts)
+          .filter(([n]) => !interlinearNums.has(parseInt(n)))
+          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, esv: text, kjv: '', words: [] as ScriptureVerse['words'] }));
+        const merged = [...lexVerses, ...textOnlyVerses].sort((a, b) => a.verse - b.verse);
+        setDynamicVerses(merged);
+      } else if (Object.keys(verseTexts).length > 0) {
+        // No interlinear — text-only from bible-api.com
+        const textVerses: ScriptureVerse[] = Object.entries(verseTexts).map(([n, text]) => ({
+          book, chapter, verse: parseInt(n), language, esv: text, kjv: '', words: [],
         }));
-        setDynamicVerses(esvVerses.sort((a, b) => a.verse - b.verse));
+        setDynamicVerses(textVerses.sort((a, b) => a.verse - b.verse));
       }
     } finally {
       setVersesLoading(false);
@@ -305,24 +315,6 @@ export default function App() {
       </div>
     </div>
   );
-}
-
-// Splits a multi-verse ESV passage string into { verseNumber: text } map.
-// ESV API returns plain text like: "[1] In the beginning... [2] And God said..."
-function splitEsvIntoVerses(passage: string): Record<number, string> {
-  const result: Record<number, string> = {};
-  const regex = /\[(\d+)\]\s*([\s\S]*?)(?=\[\d+\]|$)/g;
-  let m: RegExpExecArray | null;
-  while ((m = regex.exec(passage)) !== null) {
-    const verseNum = parseInt(m[1]);
-    const text = m[2].replace(/\s+/g, ' ').trim();
-    if (text) result[verseNum] = text;
-  }
-  // If no verse markers found, treat entire passage as verse 1
-  if (Object.keys(result).length === 0 && passage.trim()) {
-    result[1] = passage.trim();
-  }
-  return result;
 }
 
 function langLabel(lang: string) {
