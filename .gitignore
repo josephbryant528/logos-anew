@@ -47,5 +47,8 @@ smoke-screenshots/
 # lexicon data — generated at build time from STEPBible CC BY 4.0 source
 /public/lexicon/
 
-# STEPBible source file cache (downloaded by build-lexicon.mjs)
+# commentary data — generated at build time from MHCC (Public Domain)
+/public/commentaries/
+
+# STEPBible source file cache + MHCC download (downloaded by build scripts)
 /.stepbible-data/

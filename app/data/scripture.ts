@@ -26,6 +26,8 @@ export interface Commentary {
   author: string;
   era: string;
   verseKey: string;
+  verseStart?: number;
+  verseEnd?: number;
   text: string;
 }
 
@@ -254,7 +256,18 @@ export function getVerseKey(book: string, chapter: number, verse: number) {
   return `${book} ${chapter}:${verse}`;
 }
 
-export function getCommentariesForVerse(book: string, chapter: number, verse: number): Commentary[] {
+export function getCommentariesForVerse(
+  book: string,
+  chapter: number,
+  verse: number,
+  dynamic: Commentary[] = []
+): Commentary[] {
   const key = getVerseKey(book, chapter, verse);
-  return COMMENTARIES.filter(c => c.verseKey === key);
+  const staticMatches  = COMMENTARIES.filter(c => c.verseKey === key);
+  const dynamicMatches = dynamic.filter(c =>
+    c.verseStart !== undefined && c.verseEnd !== undefined
+      ? c.verseStart <= verse && verse <= c.verseEnd
+      : c.verseKey === key
+  );
+  return [...dynamicMatches, ...staticMatches];
 }

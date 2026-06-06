@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/build-lexicon.mjs",
+    "prebuild": "node scripts/build-lexicon.mjs && node scripts/build-commentaries.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

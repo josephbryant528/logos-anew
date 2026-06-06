@@ -18,6 +18,8 @@ const GR   = "'Noto Serif', serif";
 
 type NavLevel = "top" | "books" | "chapters";
 
+function bookSlugLocal(name: string) { return name.toLowerCase().replace(/\s+/g, '-') }
+
 interface Location { book: string; chapter: number; verse: number | null }
 
 // Parses [SCRIPTURE:ref] and [COMMENTARY:Author] badges from AI output
@@ -76,7 +78,8 @@ export default function App() {
   const [dynamicVerses,  setDynamicVerses]  = useState<ScriptureVerse[]>([]);
   const [versesLoading,  setVersesLoading]  = useState(false);
   const [versesError,    setVersesError]    = useState<string | null>(null);
-  const chapterCache = useRef<Map<string, ScriptureVerse[]>>(new Map());
+  const chapterCache     = useRef<Map<string, ScriptureVerse[]>>(new Map());
+  const commentaryCache  = useRef<Map<string, Commentary[]>>(new Map());
 
   const fetchVerses = useCallback(async (book: string, chapter: number) => {
     const cacheKey = `${book}:${chapter}`;
@@ -90,15 +93,33 @@ export default function App() {
     setVersesError(null);
     setDynamicVerses([]);
     try {
-      const [esvRes, lexRes] = await Promise.allSettled([
+      const [esvRes, lexRes, comRes] = await Promise.allSettled([
         fetch(`/api/passage?q=${encodeURIComponent(`${book} ${chapter}`)}`)
           .then(r => r.ok ? r.json() : Promise.reject(new Error(`ESV ${r.status}`))),
         fetch(`/api/lexicon?book=${encodeURIComponent(book)}&chapter=${chapter}`)
           .then(r => r.ok ? r.json() : Promise.reject(new Error(`Lexicon ${r.status}`))),
+        fetch(`/api/commentary?book=${encodeURIComponent(book)}&chapter=${chapter}`)
+          .then(r => r.ok ? r.json() : null),
       ]);
 
       const esvData = esvRes.status === 'fulfilled' ? esvRes.value : null;
       const lexData = lexRes.status === 'fulfilled' ? lexRes.value : null;
+      const comData = comRes.status === 'fulfilled' ? comRes.value : null;
+
+      // Cache commentary entries for this chapter
+      if (comData?.entries?.length > 0) {
+        const entries: Commentary[] = comData.entries.map((e: { verseStart: number; verseEnd: number; text: string }, i: number) => ({
+          id:         `mhcc-${bookSlugLocal(book)}-${chapter}-${i}`,
+          source:     comData.source,
+          author:     comData.author,
+          era:        comData.era,
+          verseKey:   `${book} ${chapter}:${e.verseStart}`,
+          verseStart: e.verseStart,
+          verseEnd:   e.verseEnd,
+          text:       e.text,
+        }));
+        commentaryCache.current.set(cacheKey, entries);
+      }
 
       const verseTexts = splitEsvIntoVerses(esvData?.passage ?? '');
       const lexVerses: ScriptureVerse[] = lexData?.verses ?? [];
@@ -142,7 +163,9 @@ export default function App() {
 
   const commentaries = useMemo(() => {
     if (!activeVerse) return [];
-    return getCommentariesForVerse(activeVerse.book, activeVerse.chapter, activeVerse.verse);
+    const cacheKey = `${activeVerse.book}:${activeVerse.chapter}`;
+    const dynamic  = commentaryCache.current.get(cacheKey) ?? [];
+    return getCommentariesForVerse(activeVerse.book, activeVerse.chapter, activeVerse.verse, dynamic);
   }, [activeVerse]);
 
   const currentBookMeta = BIBLE_BOOKS.find(b => b.name === selectedBook);
