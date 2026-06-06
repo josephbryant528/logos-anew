@@ -62,6 +62,99 @@ function BadgedText({ text }: { text: string }) {
   );
 }
 
+// Renders inline markdown: **bold**, *italic*, [SCRIPTURE/COMMENTARY:x] badges
+function InlineText({ text }: { text: string }) {
+  // Split on bold (**...**), italic (*...*), and badges
+  const tokens: React.ReactNode[] = [];
+  const re = /\*\*([^*]+)\*\*|\*([^*]+)\*|\[SCRIPTURE:([^\]]+)\]|\[COMMENTARY:([^\]]+)\]/g;
+  let last = 0, m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) tokens.push(text.slice(last, m.index));
+    if (m[1] !== undefined) tokens.push(<strong key={m.index}>{m[1]}</strong>);
+    else if (m[2] !== undefined) tokens.push(<em key={m.index}>{m[2]}</em>);
+    else if (m[3] !== undefined) tokens.push(
+      <span key={m.index} style={{ display: "inline-block", background: "#fffbea", border: "1px solid #b8972e", color: "#7a5c00", borderRadius: "3px", padding: "0 0.4em", fontSize: "0.82em", fontWeight: "bold", margin: "0 0.1em", verticalAlign: "middle" }}>{m[3]}</span>
+    );
+    else if (m[4] !== undefined) tokens.push(
+      <span key={m.index} style={{ display: "inline-block", background: "#eff6ff", border: "1px solid #2563eb", color: "#1e40af", borderRadius: "3px", padding: "0 0.4em", fontSize: "0.82em", fontWeight: "bold", margin: "0 0.1em", verticalAlign: "middle" }}>{m[4]}</span>
+    );
+    last = re.lastIndex;
+  }
+  if (last < text.length) tokens.push(text.slice(last));
+  return <>{tokens}</>;
+}
+
+// Renders a full markdown AI response: headings, bullets, horizontal rules, bold/italic
+function MarkdownText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  const nodes: React.ReactNode[] = [];
+  let listItems: string[] = [];
+
+  function flushList() {
+    if (listItems.length === 0) return;
+    nodes.push(
+      <ul key={nodes.length} style={{ margin: "4px 0 8px", paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "2px" }}>
+        {listItems.map((li, i) => (
+          <li key={i} style={{ lineHeight: 1.65 }}><InlineText text={li} /></li>
+        ))}
+      </ul>
+    );
+    listItems = [];
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Horizontal rule
+    if (/^---+$/.test(trimmed)) {
+      flushList();
+      nodes.push(<hr key={nodes.length} style={{ border: "none", borderTop: "1px solid var(--border)", margin: "10px 0" }} />);
+      continue;
+    }
+
+    // Headings
+    const h3 = trimmed.match(/^###\s+(.+)/);
+    const h2 = trimmed.match(/^##\s+(.+)/);
+    const h1 = trimmed.match(/^#\s+(.+)/);
+    if (h1 || h2 || h3) {
+      flushList();
+      const content = (h1 || h2 || h3)![1];
+      const size = h1 ? "1rem" : h2 ? "0.9rem" : "0.85rem";
+      const mt   = h1 ? "14px" : "10px";
+      nodes.push(
+        <p key={nodes.length} style={{ fontFamily: UI, fontWeight: 700, fontSize: size, color: "var(--foreground)", margin: `${mt} 0 4px` }}>
+          <InlineText text={content} />
+        </p>
+      );
+      continue;
+    }
+
+    // Bullet list items (-, *, •)
+    const bullet = trimmed.match(/^[-*•]\s+(.+)/);
+    if (bullet) {
+      listItems.push(bullet[1]);
+      continue;
+    }
+
+    // Blank line
+    if (!trimmed) {
+      flushList();
+      continue;
+    }
+
+    // Normal paragraph line
+    flushList();
+    nodes.push(
+      <p key={nodes.length} style={{ margin: "0 0 6px", lineHeight: 1.75 }}>
+        <InlineText text={trimmed} />
+      </p>
+    );
+  }
+  flushList();
+  return <div style={{ fontFamily: BODY, fontSize: "0.875rem", color: "var(--foreground)" }}>{nodes}</div>;
+}
+
 export default function App() {
   const [navLevel, setNavLevel] = useState<NavLevel>("top");
   const [navBook,  setNavBook]  = useState<BibleBook | null>(null);
@@ -815,7 +908,7 @@ function AIStudyTab({ verse, verseKey }: { verse: ScriptureVerse; verseKey: stri
               lineHeight: 1.75,
               whiteSpace: "pre-wrap",
             }}>
-              {m.role === "assistant" ? <BadgedText text={m.content} /> : m.content}
+              {m.role === "assistant" ? <MarkdownText text={m.content} /> : m.content}
             </div>
           </div>
         ))}
