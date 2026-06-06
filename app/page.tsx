@@ -86,48 +86,37 @@ export default function App() {
     setVersesLoading(true);
     setDynamicVerses([]);
     try {
-      // bible-api.com is keyless (WEB translation, public domain) — always works.
-      // Step Bible provides interlinear Greek/Hebrew data.
-      // Run both in parallel; merge results.
-      const [bibleRes, lexRes] = await Promise.allSettled([
-        fetch(`https://bible-api.com/${encodeURIComponent(`${book} ${chapter}`)}?translation=web`)
+      // ESV API for verse text; Step Bible for interlinear Greek/Hebrew lexicon data.
+      const [esvRes, lexRes] = await Promise.allSettled([
+        fetch(`/api/passage?q=${encodeURIComponent(`${book} ${chapter}`)}`)
           .then(r => r.ok ? r.json() : null),
         fetch(`/api/lexicon?book=${encodeURIComponent(book)}&chapter=${chapter}`)
           .then(r => r.ok ? r.json() : null),
       ]);
 
-      const bibleData = bibleRes.status === 'fulfilled' ? bibleRes.value : null;
-      const lexData   = lexRes.status   === 'fulfilled' ? lexRes.value   : null;
+      const esvData = esvRes.status === 'fulfilled' ? esvRes.value : null;
+      const lexData = lexRes.status === 'fulfilled' ? lexRes.value : null;
 
-      // Build verse text map from bible-api.com
-      const verseTexts: Record<number, string> = {};
-      for (const v of (bibleData?.verses ?? [])) {
-        verseTexts[v.verse] = (v.text as string).replace(/\n/g, ' ').trim();
-      }
-
+      const verseTexts = splitEsvIntoVerses(esvData?.passage ?? '');
       const lexVerses: ScriptureVerse[] = lexData?.verses ?? [];
       const bookMeta = BIBLE_BOOKS.find(b => b.name === book);
       const language = (bookMeta?.language ?? 'greek') as ScriptureVerse['language'];
 
       if (lexVerses.length > 0) {
-        // Attach verse text to interlinear verses
-        lexVerses.forEach(v => {
-          v.esv = verseTexts[v.verse] ?? '';
-          v.kjv = '';
-        });
-        // Fill any verses present in bible-api but missing from interlinear
+        lexVerses.forEach(v => { v.esv = verseTexts[v.verse] ?? ''; v.kjv = ''; });
+        // Include any verses in ESV that the interlinear didn't return
         const interlinearNums = new Set(lexVerses.map(v => v.verse));
-        const textOnlyVerses = Object.entries(verseTexts)
+        const textOnlyVerses: ScriptureVerse[] = Object.entries(verseTexts)
           .filter(([n]) => !interlinearNums.has(parseInt(n)))
-          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, esv: text, kjv: '', words: [] as ScriptureVerse['words'] }));
-        const merged = [...lexVerses, ...textOnlyVerses].sort((a, b) => a.verse - b.verse);
-        setDynamicVerses(merged);
+          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, esv: text, kjv: '', words: [] }));
+        setDynamicVerses([...lexVerses, ...textOnlyVerses].sort((a, b) => a.verse - b.verse));
       } else if (Object.keys(verseTexts).length > 0) {
-        // No interlinear — text-only from bible-api.com
-        const textVerses: ScriptureVerse[] = Object.entries(verseTexts).map(([n, text]) => ({
-          book, chapter, verse: parseInt(n), language, esv: text, kjv: '', words: [],
-        }));
-        setDynamicVerses(textVerses.sort((a, b) => a.verse - b.verse));
+        // No interlinear available — ESV text only
+        setDynamicVerses(
+          Object.entries(verseTexts)
+            .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, esv: text, kjv: '', words: [] }))
+            .sort((a, b) => a.verse - b.verse)
+        );
       }
     } finally {
       setVersesLoading(false);
@@ -315,6 +304,18 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+// ESV API returns a single passage string with inline markers: "[1] text [2] text..."
+function splitEsvIntoVerses(passage: string): Record<number, string> {
+  const result: Record<number, string> = {};
+  const regex = /\[(\d+)\]\s*([\s\S]*?)(?=\[\d+\]|$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(passage)) !== null) {
+    const text = m[2].replace(/\s+/g, ' ').trim();
+    if (text) result[parseInt(m[1])] = text;
+  }
+  return result;
 }
 
 function langLabel(lang: string) {
