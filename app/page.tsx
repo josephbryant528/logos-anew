@@ -751,7 +751,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-        {([["Strongs", selectedWord.strongsNumber], ["Lemma", selectedWord.lemma], ["Part of Speech", selectedWord.partOfSpeech], ["Parsing", selectedWord.parsing]] as [string, string][]).map(([label, value]) => (
+        {([["Lemma", selectedWord.lemma], ["Part of Speech", selectedWord.partOfSpeech]] as [string, string][]).map(([label, value]) => (
           <div key={label} style={{ display: "flex", alignItems: "baseline", gap: "8px", padding: "4px 0", borderBottom: "1px solid var(--border)" }}>
             <span style={{ fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)", minWidth: "110px", flexShrink: 0 }}>{label}</span>
             <span style={{ fontFamily: MONO, fontSize: "0.8rem", color: "var(--foreground)" }}>{value}</span>
