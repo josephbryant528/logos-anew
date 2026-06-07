@@ -609,9 +609,9 @@ function InterlinearStrip({ verse, selectedWord, onWordSelect }: { verse: Script
             onMouseEnter={e => { if (!sel) e.currentTarget.style.background = "rgba(55,53,47,0.04)"; }}
             onMouseLeave={e => { if (!sel) e.currentTarget.style.background = "transparent"; }}
           >
-            <span style={{ fontFamily: origFont, fontSize: isHebrew ? "1.2rem" : "1.1rem", lineHeight: 1.3, color: "var(--foreground)", direction: isHebrew ? "rtl" : "ltr" }}>{word.original}</span>
+            <span style={{ fontFamily: origFont, fontSize: isHebrew ? "1.2rem" : "1.1rem", lineHeight: 1.3, color: sel ? "var(--accent)" : "var(--foreground)", direction: isHebrew ? "rtl" : "ltr" }}>{word.original}</span>
             <span style={{ fontFamily: MONO, fontSize: "0.58rem", color: "var(--muted-foreground)", direction: "ltr" }}>{word.transliteration}</span>
-            <span style={{ fontFamily: UI, fontSize: "0.65rem", color: sel ? "var(--accent)" : "var(--muted-foreground)", direction: "ltr" }}>{word.gloss}</span>
+            <span style={{ fontFamily: UI, fontSize: "0.65rem", color: "var(--muted-foreground)", direction: "ltr" }}>{word.gloss}</span>
           </button>
         );
       })}
@@ -745,9 +745,9 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div style={{ padding: "16px", borderRadius: "8px", background: "var(--muted)" }}>
-        <div style={{ fontFamily: origFont, fontSize: "2rem", lineHeight: 1.2, color: "var(--foreground)", marginBottom: "4px" }}>{selectedWord.original}</div>
-        <div style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "6px" }}>{selectedWord.transliteration}</div>
-        <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: "0.95rem", color: "var(--foreground)" }}>&ldquo;{selectedWord.gloss}&rdquo;</div>
+        <div style={{ fontFamily: origFont, fontSize: "2rem", lineHeight: 1.2, color: "var(--foreground)", marginBottom: "6px" }}>{selectedWord.original}</div>
+        <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: "0.95rem", color: "var(--foreground)", marginBottom: "4px" }}>&ldquo;{selectedWord.gloss}&rdquo;</div>
+        <div style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--muted-foreground)" }}>{selectedWord.transliteration}</div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
