@@ -425,6 +425,7 @@ export default function App() {
               onWordSelect={(w) => setSelectedWord(prev => prev?.id === w.id ? null : w)}
               onClose={() => { setActiveVerse(null); setSelectedWord(null); }}
               onNavigateTo={navigateTo}
+              onCrossRefNavigate={(book, chapter, verse) => { navigateTo(book, chapter, verse); setDetailTab("lexicon"); }}
             />
           </aside>
         )}
@@ -620,11 +621,12 @@ function InterlinearStrip({ verse, selectedWord, onWordSelect }: { verse: Script
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 
-function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWordSelect, onClose, onNavigateTo }: {
+function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWordSelect, onClose, onNavigateTo, onCrossRefNavigate }: {
   verse: ScriptureVerse; commentaries: Commentary[]; selectedWord: OriginalWord | null;
   tab: "lexicon" | "commentary" | "ai"; onTabChange: (t: "lexicon" | "commentary" | "ai") => void;
   onWordSelect: (w: OriginalWord) => void; onClose: () => void;
   onNavigateTo: (book: string, chapter: number, verse: number | null, pushHistory?: boolean) => void;
+  onCrossRefNavigate: (book: string, chapter: number, verse: number) => void;
 }) {
   const verseKey = `${verse.book} ${verse.chapter}:${verse.verse}`;
   return (
@@ -651,7 +653,7 @@ function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWo
           ))}
         </div>
       </div>
-      {tab === "lexicon"    && <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}><LexiconTab verse={verse} selectedWord={selectedWord} onWordSelect={onWordSelect} onNavigateTo={onNavigateTo} /></div>}
+      {tab === "lexicon"    && <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}><LexiconTab verse={verse} selectedWord={selectedWord} onWordSelect={onWordSelect} onNavigateTo={onNavigateTo} onCrossRefNavigate={onCrossRefNavigate} /></div>}
       {tab === "commentary" && <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}><CommentaryTab commentaries={commentaries} verseKey={verseKey} /></div>}
       {tab === "ai"         && <AIStudyTab verse={verse} verseKey={verseKey} />}
     </div>
@@ -660,27 +662,69 @@ function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWo
 
 // ── Lexicon tab ───────────────────────────────────────────────────────────────
 
-function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo }: {
+interface CrossRef { reference: string; quote: string }
+
+function parseVerseRef(ref: string): { book: string; chapter: number; verse: number } | null {
+  // Match "Book Name Chapter:Verse" — book names may include numbers (e.g. "1 Kings")
+  const m = ref.match(/^(.+?)\s+(\d+):(\d+)$/)
+  if (!m) return null
+  return { book: m[1].trim(), chapter: parseInt(m[2]), verse: parseInt(m[3]) }
+}
+
+function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRefNavigate }: {
   verse: ScriptureVerse; selectedWord: OriginalWord | null; onWordSelect: (w: OriginalWord) => void;
   onNavigateTo: (book: string, chapter: number, verse: number | null, pushHistory?: boolean) => void;
+  onCrossRefNavigate: (book: string, chapter: number, verse: number) => void;
 }) {
   const isHebrew = verse.language === "hebrew";
   const origFont = isHebrew ? HE : GR;
 
-  const crossRefs = useMemo(() => {
-    if (!selectedWord) return [];
-    const results: { verse: ScriptureVerse; word: OriginalWord }[] = [];
-    for (const v of PASSAGES) {
-      if (v.book === verse.book && v.chapter === verse.chapter && v.verse === verse.verse) continue;
-      for (const w of v.words) {
-        if (w.strongsNumber === selectedWord.strongsNumber) {
-          results.push({ verse: v, word: w });
-          break;
-        }
-      }
+  const [crossRefs,        setCrossRefs]        = useState<CrossRef[]>([]);
+  const [crossRefTotal,    setCrossRefTotal]    = useState<number | null>(null);
+  const [crossRefLoading,  setCrossRefLoading]  = useState(false);
+  const [crossRefError,    setCrossRefError]    = useState<string | null>(null);
+  const [crossRefExpanded, setCrossRefExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!selectedWord) {
+      setCrossRefs([]);
+      setCrossRefTotal(null);
+      setCrossRefError(null);
+      setCrossRefExpanded(false);
+      return;
     }
-    return results;
-  }, [selectedWord, verse]);
+    const bookMeta = BIBLE_BOOKS.find(b => b.name === verse.book);
+    const testament = bookMeta?.testament ?? "NT";
+    const currentVerse = `${verse.book} ${verse.chapter}:${verse.verse}`;
+
+    setCrossRefs([]);
+    setCrossRefTotal(null);
+    setCrossRefError(null);
+    setCrossRefExpanded(false);
+    setCrossRefLoading(true);
+
+    fetch("/api/cross-references", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        strongsNumber:  selectedWord.strongsNumber,
+        lemma:          selectedWord.lemma,
+        original:       selectedWord.original,
+        transliteration: selectedWord.transliteration,
+        gloss:          selectedWord.gloss,
+        testament,
+        currentVerse,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { setCrossRefError(data.error); return; }
+        setCrossRefTotal(data.totalCount ?? null);
+        setCrossRefs(Array.isArray(data.results) ? data.results : []);
+      })
+      .catch(() => setCrossRefError("Failed to load cross-references."))
+      .finally(() => setCrossRefLoading(false));
+  }, [selectedWord, verse.book, verse.chapter, verse.verse]);
 
   if (!selectedWord) {
     return (
@@ -721,38 +765,86 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo }: {
       </div>
 
       <div>
-        <div style={{ fontFamily: UI, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)", marginBottom: "8px" }}>
-          Used elsewhere in Scripture
+        <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginBottom: "8px" }}>
+          <div style={{ fontFamily: UI, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)" }}>
+            Used elsewhere in Scripture
+          </div>
+          {crossRefTotal !== null && (
+            <span style={{ fontFamily: MONO, fontSize: "0.68rem", color: "var(--muted-foreground)" }}>
+              ~{crossRefTotal.toLocaleString()}×
+            </span>
+          )}
         </div>
-        {crossRefs.length === 0 ? (
-          <p style={{ fontFamily: UI, fontSize: "0.82rem", color: "var(--muted-foreground)", fontStyle: "italic" }}>
-            No other indexed occurrences of {selectedWord.strongsNumber}.
-          </p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {crossRefs.map(({ verse: refVerse, word: refWord }) => (
-              <button
-                key={`${refVerse.book}-${refVerse.chapter}-${refVerse.verse}`}
-                onClick={() => onNavigateTo(refVerse.book, refVerse.chapter, refVerse.verse)}
-                style={{ textAlign: "left", padding: "10px 12px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", gap: "4px" }}
-                onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
-                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                  <span style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--accent)", fontWeight: 500 }}>
-                    {refVerse.book} {refVerse.chapter}:{refVerse.verse}
-                  </span>
-                  <span style={{ fontFamily: origFont, fontSize: isHebrew ? "1rem" : "0.9rem", color: "var(--muted-foreground)" }}>
-                    {refWord.original}
-                  </span>
-                </div>
-                <p style={{ fontFamily: BODY, fontSize: "0.82rem", lineHeight: 1.65, color: "var(--muted-foreground)", margin: 0 }}>
-                  {refVerse.text}
-                </p>
-              </button>
+
+        {crossRefLoading && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} style={{ height: "70px", borderRadius: "6px", background: "var(--muted)", opacity: 0.4 + i * 0.1, animation: "pulse 1.4s ease-in-out infinite" }} />
             ))}
+            <p style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", margin: "4px 0 0", fontStyle: "italic" }}>
+              Searching {BIBLE_BOOKS.find(b => b.name === verse.book)?.testament === "OT" ? "Old" : "New"} Testament…
+            </p>
           </div>
         )}
+
+        {crossRefError && (
+          <p style={{ fontFamily: UI, fontSize: "0.82rem", color: "var(--destructive)", fontStyle: "italic" }}>{crossRefError}</p>
+        )}
+
+        {!crossRefLoading && !crossRefError && crossRefs.length === 0 && crossRefTotal !== null && (
+          <p style={{ fontFamily: UI, fontSize: "0.82rem", color: "var(--muted-foreground)", fontStyle: "italic" }}>
+            No other occurrences found for {selectedWord.strongsNumber}.
+          </p>
+        )}
+
+        {!crossRefLoading && crossRefs.length > 0 && (() => {
+          const visible = crossRefExpanded ? crossRefs : crossRefs.slice(0, 10);
+          const hidden  = crossRefs.length - 10;
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {visible.map((ref) => {
+                const parsed = parseVerseRef(ref.reference);
+                return (
+                  <button
+                    key={ref.reference}
+                    onClick={() => { if (parsed) onCrossRefNavigate(parsed.book, parsed.chapter, parsed.verse); }}
+                    disabled={!parsed}
+                    style={{ textAlign: "left", padding: "10px 12px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: parsed ? "pointer" : "default", display: "flex", flexDirection: "column", gap: "4px" }}
+                    onMouseEnter={e => { if (parsed) e.currentTarget.style.background = "var(--muted)"; }}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <span style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--accent)", fontWeight: 500 }}>
+                      {ref.reference}
+                    </span>
+                    <p style={{ fontFamily: BODY, fontSize: "0.82rem", lineHeight: 1.65, color: "var(--muted-foreground)", margin: 0 }}>
+                      {ref.quote}
+                    </p>
+                  </button>
+                );
+              })}
+              {!crossRefExpanded && hidden > 0 && (
+                <button
+                  onClick={() => setCrossRefExpanded(true)}
+                  style={{ padding: "8px 12px", borderRadius: "6px", border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.78rem", color: "var(--muted-foreground)" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  Show {hidden} more result{hidden !== 1 ? "s" : ""}
+                </button>
+              )}
+              {crossRefExpanded && crossRefs.length > 10 && (
+                <button
+                  onClick={() => setCrossRefExpanded(false)}
+                  style={{ padding: "8px 12px", borderRadius: "6px", border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.78rem", color: "var(--muted-foreground)" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  Show less
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       <div>
