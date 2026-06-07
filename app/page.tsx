@@ -851,10 +851,14 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
         <div style={{ fontFamily: UI, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)", marginBottom: "8px" }}>Other words in this verse</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
           {verse.words.filter(w => w.id !== selectedWord.id).map(w => (
-            <button key={w.id} onClick={() => onWordSelect(w)} style={{ fontFamily: origFont, fontSize: isHebrew ? "0.95rem" : "0.9rem", padding: "3px 8px", borderRadius: "4px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--muted-foreground)" }}
+            <button key={w.id} onClick={() => onWordSelect(w)}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1px", padding: "4px 10px", borderRadius: "4px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer" }}
               onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >{w.original}</button>
+            >
+              <span style={{ fontFamily: MONO, fontSize: "0.78rem", color: "var(--foreground)" }}>{w.transliteration}</span>
+              <span style={{ fontFamily: origFont, fontSize: isHebrew ? "0.78rem" : "0.7rem", color: "var(--muted-foreground)" }}>{w.original}</span>
+            </button>
           ))}
         </div>
       </div>
