@@ -7,8 +7,11 @@ import {
 } from "./data/scripture";
 import {
   ChevronLeft, ChevronRight, X, Moon, Sun,
-  FileText, MessageSquare, BookOpen, ArrowLeft, Sparkles, Send
+  FileText, MessageSquare, BookOpen, ArrowLeft, Sparkles, Send,
+  Layers, MessageCircle
 } from "lucide-react";
+import { DisciplinesDashboard } from "./components/DisciplinesDashboard";
+import { PrayerLog } from "./components/PrayerLog";
 
 const UI   = "'Inter', system-ui, sans-serif";
 const BODY = "'Lora', serif";
@@ -17,6 +20,7 @@ const HE   = "'Noto Serif Hebrew', 'Noto Serif', serif";
 const GR   = "'Noto Serif', serif";
 
 type NavLevel = "top" | "books" | "chapters";
+type AppMode  = "bible" | "disciplines" | "prayer";
 
 function bookSlugLocal(name: string) { return name.toLowerCase().replace(/\s+/g, '-') }
 
@@ -166,6 +170,7 @@ export default function App() {
   const [detailTab,       setDetailTab]       = useState<"lexicon" | "commentary" | "ai">("lexicon");
 
   const [history, setHistory] = useState<Location[]>([]);
+  const [appMode,        setAppMode]        = useState<AppMode>("bible");
   const [darkMode,       setDarkMode]       = useState(false);
   const [sidebarOpen,    setSidebarOpen]    = useState(true);
   const [dynamicVerses,  setDynamicVerses]  = useState<ScriptureVerse[]>([]);
@@ -338,17 +343,29 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: "4px", flex: 1, fontSize: "0.875rem" }}>
           <span style={{ color: "var(--muted-foreground)" }}>Verbum</span>
           <span style={{ color: "var(--border)" }}>/</span>
-          <span style={{ color: "var(--foreground)", fontWeight: 500 }}>{selectedBook}</span>
-          <span style={{ color: "var(--border)" }}>/</span>
-          <span style={{ color: "var(--foreground)", fontWeight: 500 }}>Chapter {selectedChapter}</span>
+          {appMode === "bible" ? (
+            <>
+              <span style={{ color: "var(--foreground)", fontWeight: 500 }}>{selectedBook}</span>
+              <span style={{ color: "var(--border)" }}>/</span>
+              <span style={{ color: "var(--foreground)", fontWeight: 500 }}>Chapter {selectedChapter}</span>
+            </>
+          ) : appMode === "disciplines" ? (
+            <span style={{ color: "var(--foreground)", fontWeight: 500 }}>Disciplines</span>
+          ) : (
+            <span style={{ color: "var(--foreground)", fontWeight: 500 }}>Prayer Log</span>
+          )}
         </div>
 
-        <NavBtn onClick={() => { if (selectedChapter > 1) { setSelectedChapter(c => c - 1); setActiveVerse(null); } }} disabled={selectedChapter <= 1}>
-          <ChevronLeft size={14} />
-        </NavBtn>
-        <NavBtn onClick={() => { if (selectedChapter < chapterCount) { setSelectedChapter(c => c + 1); setActiveVerse(null); } }} disabled={selectedChapter >= chapterCount}>
-          <ChevronRight size={14} />
-        </NavBtn>
+        {appMode === "bible" && (
+          <>
+            <NavBtn onClick={() => { if (selectedChapter > 1) { setSelectedChapter(c => c - 1); setActiveVerse(null); } }} disabled={selectedChapter <= 1}>
+              <ChevronLeft size={14} />
+            </NavBtn>
+            <NavBtn onClick={() => { if (selectedChapter < chapterCount) { setSelectedChapter(c => c + 1); setActiveVerse(null); } }} disabled={selectedChapter >= chapterCount}>
+              <ChevronRight size={14} />
+            </NavBtn>
+          </>
+        )}
         <NavBtn onClick={() => setDarkMode(d => !d)}>
           {darkMode ? <Sun size={15} style={{ color: "var(--muted-foreground)" }} /> : <Moon size={15} style={{ color: "var(--muted-foreground)" }} />}
         </NavBtn>
@@ -359,21 +376,58 @@ export default function App() {
         {/* Sidebar */}
         {sidebarOpen && (
           <aside style={{ width: "240px", flexShrink: 0, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
-            <SidebarNav
-              navLevel={navLevel}
-              navBook={navBook}
-              selectedBook={selectedBook}
-              selectedChapter={selectedChapter}
-              onGoTop={() => setNavLevel("top")}
-              onGoBooks={() => setNavLevel("books")}
-              onSelectBook={(b) => { setNavBook(b); setNavLevel("chapters"); }}
-              onSelectChapter={handleSelectChapter}
-            />
+            {/* Mode switcher */}
+            <div style={{ padding: "8px 0", borderBottom: "1px solid var(--sidebar-border)" }}>
+              <SidebarItem
+                icon={<BookOpen size={14} />}
+                label="Bible"
+                active={appMode === "bible"}
+                onClick={() => setAppMode("bible")}
+                rightIcon={appMode === "bible" ? <ChevronRight size={13} style={{ color: "var(--muted-foreground)" }} /> : undefined}
+              />
+              <SidebarItem
+                icon={<Layers size={14} />}
+                label="Disciplines"
+                active={appMode === "disciplines"}
+                onClick={() => setAppMode("disciplines")}
+              />
+              <SidebarItem
+                icon={<MessageCircle size={14} />}
+                label="Prayer Log"
+                active={appMode === "prayer"}
+                onClick={() => setAppMode("prayer")}
+                indent
+              />
+            </div>
+            {appMode === "bible" && (
+              <SidebarNav
+                navLevel={navLevel}
+                navBook={navBook}
+                selectedBook={selectedBook}
+                selectedChapter={selectedChapter}
+                onGoTop={() => setNavLevel("top")}
+                onGoBooks={() => setNavLevel("books")}
+                onSelectBook={(b) => { setNavBook(b); setNavLevel("chapters"); }}
+                onSelectChapter={handleSelectChapter}
+              />
+            )}
           </aside>
         )}
 
+        {/* Main content area */}
+        {appMode === "disciplines" && (
+          <main style={{ flex: 1, overflowY: "auto" }}>
+            <DisciplinesDashboard />
+          </main>
+        )}
+        {appMode === "prayer" && (
+          <main style={{ flex: 1, overflowY: "auto" }}>
+            <PrayerLog />
+          </main>
+        )}
+
         {/* Main reading pane */}
-        <main style={{ flex: 1, overflowY: "auto" }}>
+        <main style={{ flex: 1, overflowY: "auto", display: appMode === "bible" ? "block" : "none" }}>
           {/* Tinted header band */}
           <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: "48px 96px 36px" }}>
             <div style={{ maxWidth: "528px" }}>
@@ -421,7 +475,7 @@ export default function App() {
         </main>
 
         {/* Detail panel */}
-        {activeVerse && (
+        {appMode === "bible" && activeVerse && (
           <aside style={{ width: "380px", flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--background)", display: "flex", flexDirection: "column" }}>
             <DetailPanel
               verse={activeVerse}
@@ -471,7 +525,7 @@ function SidebarNav({ navLevel, navBook, selectedBook, selectedChapter, onGoTop,
   if (navLevel === "top") {
     return (
       <div style={{ padding: "8px 0" }}>
-        <SidebarItem icon="📖" label="Bible" onClick={onGoBooks} rightIcon={<ChevronRight size={13} style={{ color: "var(--muted-foreground)" }} />} />
+        <SidebarItem icon={<BookOpen size={14} />} label="Bible" onClick={onGoBooks} rightIcon={<ChevronRight size={13} style={{ color: "var(--muted-foreground)" }} />} />
       </div>
     );
   }
@@ -545,13 +599,13 @@ function TestamentSection({ label, books, selectedBook, onSelectBook }: { label:
   );
 }
 
-function SidebarItem({ icon, label, onClick, rightIcon }: { icon: string; label: string; onClick: () => void; rightIcon?: React.ReactNode }) {
+function SidebarItem({ icon, label, onClick, rightIcon, active, indent }: { icon: React.ReactNode; label: string; onClick: () => void; rightIcon?: React.ReactNode; active?: boolean; indent?: boolean }) {
   return (
-    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: "8px", padding: "4px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: "var(--sidebar-foreground)" }}
+    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: "8px", padding: "4px 12px", paddingLeft: indent ? "28px" : "12px", border: "none", background: active ? "var(--sidebar-accent)" : "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: active ? "var(--foreground)" : "var(--sidebar-foreground)", fontWeight: active ? 500 : 400 }}
       onMouseEnter={e => e.currentTarget.style.background = "var(--sidebar-accent)"}
-      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+      onMouseLeave={e => e.currentTarget.style.background = active ? "var(--sidebar-accent)" : "transparent"}
     >
-      <span>{icon}</span>
+      <span style={{ color: active ? "var(--accent)" : "var(--muted-foreground)", display: "flex" }}>{icon}</span>
       <span style={{ flex: 1, textAlign: "left" }}>{label}</span>
       {rightIcon}
     </button>
