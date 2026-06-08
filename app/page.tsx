@@ -374,16 +374,23 @@ export default function App() {
 
         {/* Main reading pane */}
         <main style={{ flex: 1, overflowY: "auto" }}>
-          <div style={{ maxWidth: "720px", margin: "0 auto", padding: "60px 96px 120px" }}>
-            <div style={{ fontSize: "2.5rem", marginBottom: "6px" }}>📖</div>
-            <h1 style={{ fontFamily: UI, fontSize: "1.875rem", fontWeight: 700, color: "var(--foreground)", marginBottom: "4px" }}>
-              {selectedBook}
-            </h1>
-            <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)", marginBottom: "32px" }}>
-              Chapter {selectedChapter}
-              {currentBookMeta && <> · {langLabel(currentBookMeta.language)}</>}
-            </p>
-            <div style={{ height: "1px", background: "var(--border)", marginBottom: "32px" }} />
+          {/* Tinted header band */}
+          <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: "48px 96px 36px" }}>
+            <div style={{ maxWidth: "528px" }}>
+              {currentBookMeta && (
+                <div style={{ fontFamily: MONO, fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--accent)", marginBottom: "10px" }}>
+                  {currentBookMeta.testament === "OT" ? "Old Testament" : "New Testament"} · {langLabel(currentBookMeta.language)}
+                </div>
+              )}
+              <h1 style={{ fontFamily: UI, fontSize: "2rem", fontWeight: 700, color: "var(--foreground)", marginBottom: "6px", lineHeight: 1.2 }}>
+                {selectedBook}
+              </h1>
+              <p style={{ fontFamily: UI, fontSize: "0.875rem", color: "var(--muted-foreground)", margin: 0 }}>
+                Chapter {selectedChapter}
+              </p>
+            </div>
+          </div>
+          <div style={{ maxWidth: "720px", margin: "0 auto", padding: "40px 96px 120px" }}>
 
             {versesLoading ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
