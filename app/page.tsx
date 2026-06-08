@@ -417,7 +417,7 @@ export default function App() {
         {/* Main content area */}
         {appMode === "disciplines" && (
           <main style={{ flex: 1, overflowY: "auto" }}>
-            <DisciplinesDashboard />
+            <DisciplinesDashboard onViewPrayerLog={() => setAppMode("prayer")} />
           </main>
         )}
         {appMode === "prayer" && (
