@@ -429,8 +429,8 @@ export default function App() {
         {/* Main reading pane */}
         <main style={{ flex: 1, overflowY: "auto", display: appMode === "bible" ? "block" : "none" }}>
           {/* Tinted header band */}
-          <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: "48px 96px 36px" }}>
-            <div style={{ maxWidth: "528px" }}>
+          <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: "48px 64px 36px" }}>
+            <div style={{ maxWidth: "820px" }}>
               {currentBookMeta && (
                 <div style={{ fontFamily: MONO, fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--accent)", marginBottom: "10px" }}>
                   {currentBookMeta.testament === "OT" ? "Old Testament" : "New Testament"} · {langLabel(currentBookMeta.language)}
@@ -444,7 +444,7 @@ export default function App() {
               </p>
             </div>
           </div>
-          <div style={{ maxWidth: "720px", margin: "0 auto", padding: "40px 96px 120px" }}>
+          <div style={{ maxWidth: "820px", margin: "0 auto", padding: "40px 64px 120px" }}>
 
             {versesLoading ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
