@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { type OriginalWord, type ScriptureVerse, type Commentary } from "../../data/scripture";
-import { X, FileText, MessageSquare, Sparkles } from "lucide-react";
+import { X, FileText, MessageSquare, Sparkles, Maximize2, Minimize2 } from "lucide-react";
 import { AIStudyTab } from "./AIStudyTab";
 import { CommentaryTab } from "./CommentaryTab";
 import { LexiconTab } from "./LexiconTab";
@@ -16,10 +16,9 @@ export function SheetHandle({ sheet }: { sheet: SheetControls }) {
   const startY = useRef<number | null>(null);
   const swiped = useRef(false);
   return (
-    <button
-      aria-label={sheet.full ? "Shrink study panel" : "Expand study panel"}
-      aria-expanded={sheet.full}
-      onPointerDown={e => { startY.current = e.clientY; swiped.current = false; }}
+    <div
+      aria-hidden="true"
+      onPointerDown={e => { startY.current = e.clientY; swiped.current = false; e.currentTarget.setPointerCapture(e.pointerId); }}
       onPointerUp={e => {
         if (startY.current === null) return;
         const dy = e.clientY - startY.current;
@@ -27,11 +26,12 @@ export function SheetHandle({ sheet }: { sheet: SheetControls }) {
         if (dy > 40) { swiped.current = true; if (sheet.full) sheet.onShrink(); else sheet.onDismiss(); }
         else if (dy < -40) { swiped.current = true; sheet.onExpand(); }
       }}
+      onPointerCancel={() => { startY.current = null; }}
       onClick={() => { if (swiped.current) { swiped.current = false; return; } if (sheet.full) sheet.onShrink(); else sheet.onExpand(); }}
-      style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%", height: "24px", border: "none", background: "transparent", cursor: "grab", touchAction: "none", flexShrink: 0 }}
+      style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%", height: "32px", cursor: "grab", touchAction: "none", flexShrink: 0 }}
     >
-      <span aria-hidden="true" style={{ width: "36px", height: "4px", borderRadius: "2px", background: "var(--muted-foreground)", opacity: 0.4 }} />
-    </button>
+      <span style={{ width: "40px", height: "5px", borderRadius: "3px", background: "var(--muted-foreground)", opacity: 0.45 }} />
+    </div>
   );
 }
 
@@ -49,12 +49,19 @@ export function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChang
       <div style={{ padding: sheet ? "0 16px" : "14px 16px 0", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <span style={{ fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)" }}>{verseKey}</span>
-          <button onClick={onClose} aria-label="Close study panel" style={{ ...iconBtn, margin: "-12px -12px -12px 0" }}
+          <div style={{ display: "flex", alignItems: "center", margin: "-12px -12px -12px 0" }}>
+          {sheet && (
+            <button onClick={sheet.full ? sheet.onShrink : sheet.onExpand} aria-label={sheet.full ? "Shrink study panel" : "Expand study panel"} aria-expanded={sheet.full} style={iconBtn}>
+              {sheet.full ? <Minimize2 size={17} style={{ color: "var(--muted-foreground)" }} /> : <Maximize2 size={17} style={{ color: "var(--muted-foreground)" }} />}
+            </button>
+          )}
+          <button onClick={onClose} aria-label="Close study panel" style={iconBtn}
             onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
             <X size={18} style={{ color: "var(--muted-foreground)" }} />
           </button>
+          </div>
         </div>
         <div role="tablist" style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
           {([
