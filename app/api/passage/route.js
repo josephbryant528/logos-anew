@@ -8,7 +8,7 @@ export async function GET(request) {
 
   const params = new URLSearchParams({
     q: ref,
-    'include-headings': 'false',
+    'include-headings': 'true',
     'include-footnotes': 'false',
     'include-verse-numbers': 'true',
     'include-short-copyright': 'false',
