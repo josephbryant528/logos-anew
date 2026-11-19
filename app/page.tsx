@@ -740,8 +740,8 @@ function InterlinearStrip({ verse, selectedWord, onWordSelect }: { verse: Script
             onMouseEnter={e => { if (!canHover()) return; if (!sel) e.currentTarget.style.background = "rgba(55,53,47,0.04)"; }}
             onMouseLeave={e => { if (!sel) e.currentTarget.style.background = "transparent"; }}
           >
-            <span style={{ fontFamily: MONO, fontSize: "0.85rem", lineHeight: 1.3, color: sel ? "var(--accent-text)" : "var(--foreground)", direction: "ltr" }}>{word.transliteration}</span>
-            <span style={{ fontFamily: origFont, fontSize: isHebrew ? "0.85rem" : "0.78rem", color: "var(--muted-foreground)", direction: isHebrew ? "rtl" : "ltr" }}>{word.original}</span>
+            <span lang={isHebrew ? "he" : "grc"} style={{ fontFamily: origFont, fontSize: isHebrew ? "1.15rem" : "1.05rem", lineHeight: 1.35, color: sel ? "var(--accent-text)" : "var(--foreground)", direction: isHebrew ? "rtl" : "ltr" }}>{word.original}</span>
+            <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--muted-foreground)", direction: "ltr" }}>{word.transliteration}</span>
             <span style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", direction: "ltr" }}>{word.gloss}</span>
           </button>
         );
@@ -965,7 +965,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
               onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
-              <span style={{ fontFamily: origFont, fontSize: isHebrew ? "1.1rem" : "1rem", lineHeight: 1.3, direction: isHebrew ? "rtl" : "ltr" }}>{w.original}</span>
+              <span lang={isHebrew ? "he" : "grc"} style={{ fontFamily: origFont, fontSize: isHebrew ? "1.25rem" : "1.15rem", lineHeight: 1.3, direction: isHebrew ? "rtl" : "ltr" }}>{w.original}</span>
               <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--muted-foreground)", overflowWrap: "anywhere" }}>{w.transliteration}</span>
               <span style={{ fontFamily: UI, fontSize: "0.75rem", fontWeight: 500, lineHeight: 1.3, color: "var(--accent-text)" }}>{w.gloss}</span>
             </button>
@@ -978,8 +978,8 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div style={{ padding: "16px", borderRadius: "8px", background: "var(--muted)" }}>
-        <div style={{ fontFamily: MONO, fontSize: "2rem", lineHeight: 1.2, color: "var(--foreground)", marginBottom: "4px" }}>{selectedWord.transliteration}</div>
-        <div style={{ fontFamily: origFont, fontSize: isHebrew ? "1.1rem" : "1rem", color: "var(--muted-foreground)", marginBottom: "6px" }}>{selectedWord.original}</div>
+        <div lang={isHebrew ? "he" : "grc"} dir={isHebrew ? "rtl" : "ltr"} style={{ fontFamily: origFont, fontSize: isHebrew ? "2.25rem" : "2rem", lineHeight: 1.25, color: "var(--foreground)", marginBottom: "4px", textAlign: "left" }}>{selectedWord.original}</div>
+        <div style={{ fontFamily: MONO, fontSize: "0.9rem", color: "var(--muted-foreground)", marginBottom: "6px" }}>{selectedWord.transliteration}</div>
         <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: "0.85rem", color: "var(--muted-foreground)" }}>&ldquo;{selectedWord.gloss}&rdquo;</div>
       </div>
 
@@ -1089,8 +1089,8 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
               onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
-              <span style={{ fontFamily: MONO, fontSize: "0.78rem", color: "var(--foreground)" }}>{w.transliteration}</span>
-              <span style={{ fontFamily: origFont, fontSize: isHebrew ? "0.78rem" : "0.7rem", color: "var(--muted-foreground)" }}>{w.original}</span>
+              <span lang={isHebrew ? "he" : "grc"} style={{ fontFamily: origFont, fontSize: isHebrew ? "1rem" : "0.95rem", color: "var(--foreground)" }}>{w.original}</span>
+              <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{w.transliteration}</span>
             </button>
           ))}
         </div>
