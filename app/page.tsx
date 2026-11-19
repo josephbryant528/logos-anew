@@ -248,6 +248,8 @@ export default function App() {
 
       const verseTexts = splitEsvIntoVerses(esvData?.passage ?? '');
       const layouts = parseEsvLayout(esvData?.passage ?? '');
+      // With headings on, the plain splitter would glue a heading onto the verse before it; take each verse's text from the layout instead.
+      for (const [n, l] of Object.entries(layouts)) verseTexts[Number(n)] = l.lines.filter(x => x.indent >= 0).map(x => x.text).join(' ');
       const lexVerses: ScriptureVerse[] = lexData?.verses ?? [];
       const bookMeta = BIBLE_BOOKS.find(b => b.name === book);
       const language = (bookMeta?.language ?? 'greek') as ScriptureVerse['language'];
