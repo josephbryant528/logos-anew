@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 import {
-  PASSAGES, BIBLE_BOOKS, BibleBook, OriginalWord, ScriptureVerse, VerseLayout,
+  BIBLE_BOOKS, BibleBook, OriginalWord, ScriptureVerse, VerseLayout,
   getCommentariesForVerse, Commentary
 } from "./data/scripture";
 import {
@@ -29,46 +29,6 @@ function bookSlugLocal(name: string) { return name.toLowerCase().replace(/\s+/g,
 
 interface Location { book: string; chapter: number; verse: number | null }
 
-// Parses [SCRIPTURE:ref] and [COMMENTARY:Author] badges from AI output
-function parseBadges(text: string) {
-  const parts: { type: string; value: string }[] = [];
-  const regex = /\[(SCRIPTURE|COMMENTARY):([^\]]+)\]/g;
-  let last = 0;
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > last) parts.push({ type: "text", value: text.slice(last, match.index) });
-    parts.push({ type: match[1], value: match[2].trim() });
-    last = regex.lastIndex;
-  }
-  if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
-  return parts;
-}
-
-function BadgedText({ text }: { text: string }) {
-  const parts = parseBadges(text);
-  return (
-    <>
-      {parts.map((p, i) => {
-        if (p.type === "SCRIPTURE") {
-          return (
-            <span key={i} style={{ display: "inline-block", background: "#fffbea", border: "1px solid #b8972e", color: "#7a5c00", borderRadius: "3px", padding: "0 0.4em", fontSize: "0.82em", fontWeight: "bold", margin: "0 0.1em", verticalAlign: "middle" }}>
-              {p.value}
-            </span>
-          );
-        }
-        if (p.type === "COMMENTARY") {
-          return (
-            <span key={i} style={{ display: "inline-block", background: "#eff6ff", border: "1px solid #2563eb", color: "#1e40af", borderRadius: "3px", padding: "0 0.4em", fontSize: "0.82em", fontWeight: "bold", margin: "0 0.1em", verticalAlign: "middle" }}>
-              {p.value}
-            </span>
-          );
-        }
-        return <span key={i}>{p.value}</span>;
-      })}
-    </>
-  );
-}
-
 // Renders inline markdown: **bold**, *italic*, [SCRIPTURE/COMMENTARY:x] badges
 function InlineText({ text }: { text: string }) {
   // Split on bold (**...**), italic (*...*), and badges
@@ -80,10 +40,10 @@ function InlineText({ text }: { text: string }) {
     if (m[1] !== undefined) tokens.push(<strong key={m.index}>{m[1]}</strong>);
     else if (m[2] !== undefined) tokens.push(<em key={m.index}>{m[2]}</em>);
     else if (m[3] !== undefined) tokens.push(
-      <span key={m.index} style={{ display: "inline-block", background: "#fffbea", border: "1px solid #b8972e", color: "#7a5c00", borderRadius: "3px", padding: "0 0.4em", fontSize: "0.82em", fontWeight: "bold", margin: "0 0.1em", verticalAlign: "middle" }}>{m[3]}</span>
+      <span key={m.index} style={{ display: "inline-block", background: "var(--badge-scripture-bg)", border: "1px solid var(--badge-scripture-border)", color: "var(--badge-scripture-fg)", borderRadius: "3px", padding: "0 0.4em", fontSize: "0.82em", fontWeight: 600, margin: "0 0.1em", verticalAlign: "middle" }}>{m[3]}</span>
     );
     else if (m[4] !== undefined) tokens.push(
-      <span key={m.index} style={{ display: "inline-block", background: "#eff6ff", border: "1px solid #2563eb", color: "#1e40af", borderRadius: "3px", padding: "0 0.4em", fontSize: "0.82em", fontWeight: "bold", margin: "0 0.1em", verticalAlign: "middle" }}>{m[4]}</span>
+      <span key={m.index} style={{ display: "inline-block", background: "var(--badge-commentary-bg)", border: "1px solid var(--badge-commentary-border)", color: "var(--badge-commentary-fg)", borderRadius: "3px", padding: "0 0.4em", fontSize: "0.82em", fontWeight: 600, margin: "0 0.1em", verticalAlign: "middle" }}>{m[4]}</span>
     );
     last = re.lastIndex;
   }
@@ -163,6 +123,32 @@ function MarkdownText({ text }: { text: string }) {
 }
 
 // True on phone-sized screens. Starts false so the server and first client render match.
+// Theme lives on <html> (set before first paint by the script in layout.tsx),
+// follows the system until the reader picks one, and is saved on this device.
+const THEME_KEY = "unveiled.theme";
+const DARK_QUERY = "(prefers-color-scheme: dark)";
+const themeListeners = new Set<() => void>();
+function applyTheme() {
+  let saved: string | null = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch {}
+  const dark = saved ? saved === "dark" : window.matchMedia(DARK_QUERY).matches;
+  document.documentElement.classList.toggle("dark", dark);
+  themeListeners.forEach(l => l());
+}
+function setTheme(theme: "light" | "dark") {
+  try { localStorage.setItem(THEME_KEY, theme); } catch {}
+  applyTheme();
+}
+function subscribeTheme(onChange: () => void) {
+  themeListeners.add(onChange);
+  const mq = window.matchMedia(DARK_QUERY);
+  mq.addEventListener("change", applyTheme);
+  return () => { themeListeners.delete(onChange); mq.removeEventListener("change", applyTheme); };
+}
+function useDarkMode() {
+  return useSyncExternalStore(subscribeTheme, () => document.documentElement.classList.contains("dark"), () => false);
+}
+
 const MOBILE_QUERY = "(max-width: 768px)";
 function subscribeMobile(onChange: () => void) {
   const mq = window.matchMedia(MOBILE_QUERY);
@@ -190,7 +176,7 @@ export default function App() {
 
   const [history, setHistory] = useState<Location[]>([]);
   const appMode = "bible" as AppMode; // Disciplines and Prayer Log are hidden for now
-  const [darkMode,       setDarkMode]       = useState(false);
+  const darkMode = useDarkMode();
   const [sidebarOpen,    setSidebarOpen]    = useState(true);
   const [dynamicVerses,  setDynamicVerses]  = useState<ScriptureVerse[]>([]);
   const [versesLoading,  setVersesLoading]  = useState(false);
@@ -406,7 +392,7 @@ export default function App() {
   };
 
   return (
-    <div className={darkMode ? "dark" : ""} style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--background)", color: "var(--foreground)", fontFamily: UI, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--background)", color: "var(--foreground)", fontFamily: UI, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
 
       {/* Topbar */}
       <header style={{ height: `${HEADER_H}px`, display: "flex", alignItems: "center", gap: isMobile ? "2px" : "8px", padding: isMobile ? "0 4px" : "0 12px", borderBottom: "1px solid var(--border)", background: "var(--background)", flexShrink: 0 }}>
@@ -452,12 +438,12 @@ export default function App() {
         <NavBtn label={`Text size: ${textSizeName}`} onClick={cycleTextSize}>
           <span aria-hidden="true" style={{ fontFamily: BODY, fontSize: "1rem", color: "var(--muted-foreground)", lineHeight: 1 }}>A<span style={{ fontSize: "0.75em" }}>a</span></span>
         </NavBtn>
-        <NavBtn label={darkMode ? "Light mode" : "Dark mode"} onClick={() => setDarkMode(d => !d)}>
+        <NavBtn label={darkMode ? "Light mode" : "Dark mode"} onClick={() => setTheme(darkMode ? "light" : "dark")}>
           {darkMode ? <Sun size={17} style={{ color: "var(--muted-foreground)" }} /> : <Moon size={17} style={{ color: "var(--muted-foreground)" }} />}
         </NavBtn>
       </header>
       {sizeToast && (
-        <div role="status" style={{ position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)", zIndex: 60, padding: "6px 14px", borderRadius: 999, background: "var(--foreground)", color: "var(--background)", fontSize: "0.8rem", fontWeight: 500, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>{sizeToast}</div>
+        <div role="status" style={{ position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)", zIndex: 60, padding: "6px 14px", borderRadius: 999, background: "var(--foreground)", color: "var(--background)", fontSize: "0.8rem", fontWeight: 500, pointerEvents: "none", boxShadow: "var(--shadow-md)" }}>{sizeToast}</div>
       )}
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
@@ -465,11 +451,11 @@ export default function App() {
         {/* Sidebar */}
         {showSidebar && isMobile && (
           <div onClick={() => setDrawerOpen(false)} aria-hidden
-            style={{ position: "fixed", inset: 0, top: `calc(${HEADER_H}px + env(safe-area-inset-top))`, background: "rgba(0,0,0,0.3)", zIndex: 39 }} />
+            style={{ position: "fixed", inset: 0, top: `calc(${HEADER_H}px + env(safe-area-inset-top))`, background: "var(--scrim)", zIndex: 39 }} />
         )}
         {showSidebar && (
           <aside style={isMobile
-            ? { position: "fixed", top: `calc(${HEADER_H}px + env(safe-area-inset-top))`, left: 0, bottom: 0, width: "min(85vw, 300px)", zIndex: 40, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "2px 0 12px rgba(0,0,0,0.12)", paddingBottom: "env(safe-area-inset-bottom)" }
+            ? { position: "fixed", top: `calc(${HEADER_H}px + env(safe-area-inset-top))`, left: 0, bottom: 0, width: "min(85vw, 300px)", zIndex: 40, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "var(--shadow-md)", paddingBottom: "env(safe-area-inset-bottom)" }
             : { width: "240px", flexShrink: 0, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
             {appMode === "bible" && (
               <SidebarNav
@@ -491,7 +477,7 @@ export default function App() {
         {/* Main reading pane */}
         <main ref={mainRef} style={{ flex: 1, overflowY: "auto", display: appMode === "bible" ? "block" : "none" }}>
           {/* Tinted header band */}
-          <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: isMobile ? "16px 16px 12px" : "48px 64px 36px" }}>
+          <div style={{ background: "var(--tint)", borderBottom: "1px solid var(--tint-border)", padding: isMobile ? "16px 16px 12px" : "48px 64px 36px" }}>
             <div style={{ maxWidth: "820px" }}>
               {currentBookMeta && (
                 <div style={{ fontFamily: MONO, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--accent-text)", marginBottom: "10px" }}>
@@ -553,7 +539,7 @@ export default function App() {
         {/* Detail panel */}
         {appMode === "bible" && activeVerse && (
           <aside aria-label="Study panel" style={isMobile
-            ? { position: "fixed", left: 0, right: 0, bottom: 0, height: sheetFull ? `calc(100dvh - ${HEADER_H}px - env(safe-area-inset-top))` : "55dvh", zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)", borderTop: "1px solid var(--border)", borderRadius: sheetFull ? 0 : "14px 14px 0 0", boxShadow: "0 -8px 24px rgba(0,0,0,0.12)", transition: "height 0.2s ease, border-radius 0.2s ease" }
+            ? { position: "fixed", left: 0, right: 0, bottom: 0, height: sheetFull ? `calc(100dvh - ${HEADER_H}px - env(safe-area-inset-top))` : "55dvh", zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)", borderTop: "1px solid var(--border)", borderRadius: sheetFull ? 0 : "14px 14px 0 0", boxShadow: "var(--shadow-sheet)", transition: "height 0.2s ease, border-radius 0.2s ease" }
             : { width: "380px", flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--background)", display: "flex", flexDirection: "column" }}>
             <DetailPanel
               verse={activeVerse}
@@ -864,8 +850,8 @@ function InterlinearStrip({ verse, selectedWord, onWordSelect }: { verse: Script
       {verse.words.map(word => {
         const sel = selectedWord?.id === word.id;
         return (
-          <button key={word.id} onClick={() => onWordSelect(word)} aria-pressed={sel} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", minWidth: `${TAP}px`, padding: "6px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: sel ? "var(--background)" : "transparent", boxShadow: sel ? "0 0 0 1px var(--border), 0 1px 3px rgba(0,0,0,0.06)" : "none" }}
-            onMouseEnter={e => { if (!canHover()) return; if (!sel) e.currentTarget.style.background = "rgba(55,53,47,0.04)"; }}
+          <button key={word.id} onClick={() => onWordSelect(word)} aria-pressed={sel} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", minWidth: `${TAP}px`, padding: "6px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: sel ? "var(--background)" : "transparent", boxShadow: sel ? "0 0 0 1px var(--border), var(--shadow-sm)" : "none" }}
+            onMouseEnter={e => { if (!canHover()) return; if (!sel) e.currentTarget.style.background = "var(--hover)"; }}
             onMouseLeave={e => { if (!sel) e.currentTarget.style.background = "transparent"; }}
           >
             <span lang={isHebrew ? "he" : "grc"} style={{ fontFamily: origFont, fontSize: isHebrew ? "1.15rem" : "1.05rem", lineHeight: 1.35, color: sel ? "var(--accent-text)" : "var(--foreground)", direction: isHebrew ? "rtl" : "ltr" }}>{word.original}</span>
