@@ -338,7 +338,7 @@ export default function App() {
   };
 
   return (
-    <div className={darkMode ? "dark" : ""} style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--background)", color: "var(--foreground)", fontFamily: UI, paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <div className={darkMode ? "dark" : ""} style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--background)", color: "var(--foreground)", fontFamily: UI, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
 
       {/* Topbar */}
       <header style={{ height: "45px", display: "flex", alignItems: "center", gap: "8px", padding: "0 12px", borderBottom: "1px solid var(--border)", background: "var(--background)", flexShrink: 0 }}>
@@ -391,11 +391,11 @@ export default function App() {
         {/* Sidebar */}
         {showSidebar && isMobile && (
           <div onClick={() => setDrawerOpen(false)} aria-hidden
-            style={{ position: "fixed", inset: 0, top: "45px", background: "rgba(0,0,0,0.3)", zIndex: 39 }} />
+            style={{ position: "fixed", inset: 0, top: "calc(45px + env(safe-area-inset-top))", background: "rgba(0,0,0,0.3)", zIndex: 39 }} />
         )}
         {showSidebar && (
           <aside style={isMobile
-            ? { position: "fixed", top: "45px", left: 0, bottom: 0, width: "min(85vw, 300px)", zIndex: 40, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "2px 0 12px rgba(0,0,0,0.12)", paddingBottom: "env(safe-area-inset-bottom)" }
+            ? { position: "fixed", top: "calc(45px + env(safe-area-inset-top))", left: 0, bottom: 0, width: "min(85vw, 300px)", zIndex: 40, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "2px 0 12px rgba(0,0,0,0.12)", paddingBottom: "env(safe-area-inset-bottom)" }
             : { width: "240px", flexShrink: 0, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
             {appMode === "bible" && (
               <SidebarNav
@@ -464,7 +464,7 @@ export default function App() {
         {/* Detail panel */}
         {appMode === "bible" && activeVerse && (
           <aside style={isMobile
-            ? { position: "fixed", top: "45px", left: 0, right: 0, bottom: 0, zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }
+            ? { position: "fixed", top: "calc(45px + env(safe-area-inset-top))", left: 0, right: 0, bottom: 0, zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }
             : { width: "380px", flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--background)", display: "flex", flexDirection: "column" }}>
             <DetailPanel
               verse={activeVerse}
