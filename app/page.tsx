@@ -1278,13 +1278,40 @@ function CommentaryTab({ commentaries, verseKey }: { commentaries: Commentary[];
                 <div style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "10px", lineHeight: 1.5 }}>
                   {[c.source, c.era, range].filter(Boolean).join(" · ")}
                 </div>
-                {c.text.split(/\n\s*\n/).map((para, j) => (
-                  <p key={j} style={{ fontFamily: BODY, fontSize: "0.95rem", lineHeight: 1.75, color: "var(--foreground)", margin: j ? "10px 0 0" : 0 }}>{para.trim()}</p>
-                ))}
+                <CommentaryText text={c.text} />
               </article>
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+// Commentary often arrives as one long block. Split it into paragraphs of a
+// few sentences, and fold anything past the first two behind "Read more".
+function commentaryParagraphs(text: string): string[] {
+  const given = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+  if (given.length > 1) return given;
+  const sentences = text.trim().split(/(?<=[.!?])\s+(?=[A-Z“"‘'(])/);
+  const paras: string[] = [];
+  for (let i = 0; i < sentences.length; i += 3) paras.push(sentences.slice(i, i + 3).join(" "));
+  return paras;
+}
+
+function CommentaryText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const paras = commentaryParagraphs(text);
+  const shown = open ? paras : paras.slice(0, 2);
+  return (
+    <div>
+      {shown.map((para, j) => (
+        <p key={j} style={{ fontFamily: BODY, fontSize: "0.95rem", lineHeight: 1.75, color: "var(--foreground)", margin: j ? "12px 0 0" : 0 }}>{para}</p>
+      ))}
+      {paras.length > 2 && (
+        <button onClick={() => setOpen(o => !o)} aria-expanded={open} style={{ minHeight: `${TAP}px`, padding: "0", marginTop: "4px", border: "none", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.85rem", fontWeight: 500, color: "var(--accent-text)" }}>
+          {open ? "Show less" : "Read more"}
+        </button>
       )}
     </div>
   );
