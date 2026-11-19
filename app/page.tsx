@@ -362,7 +362,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: "4px", flex: 1, minWidth: 0, fontSize: "0.875rem", whiteSpace: "nowrap", overflow: "hidden" }}>
           {!isMobile && (
             <>
-              <span style={{ color: "var(--muted-foreground)" }}>Verbum</span>
+              <span style={{ color: "var(--muted-foreground)" }}>Unveiled</span>
               <span style={{ color: "var(--border)" }}>/</span>
             </>
           )}
