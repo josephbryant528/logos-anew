@@ -382,6 +382,20 @@ export default function App() {
     }
   };
 
+  // On a phone the study panel is a bottom sheet: half height so the verse
+  // stays in view above it, or full height when pulled up.
+  const [sheetFull, setSheetFull] = useState(false);
+  const closeStudy = () => { setActiveVerse(null); setSelectedWord(null); setSheetFull(false); };
+  useEffect(() => {
+    if (!isMobile || !activeVerse) return;
+    const main = mainRef.current;
+    const el = main?.querySelector<HTMLElement>(`[data-verse="${activeVerse.verse}"]`);
+    if (!main || !el) return;
+    const top = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - 8;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    main.scrollTo({ top: Math.max(0, top), behavior: reduce ? "auto" : "smooth" });
+  }, [activeVerse, isMobile]);
+
   const handleSelectChapter = (book: BibleBook, ch: number) => {
     setSelectedBook(book.name);
     setSelectedChapter(ch);
@@ -492,7 +506,7 @@ export default function App() {
               </p>
             </div>
           </div>
-          <div style={{ maxWidth: "820px", margin: "0 auto", padding: isMobile ? "16px 8px 96px" : "40px 64px 120px" }}>
+          <div style={{ maxWidth: "820px", margin: "0 auto", padding: isMobile ? `16px 8px ${activeVerse ? "calc(55dvh + 24px)" : "96px"}` : "40px 64px 120px" }}>
 
             {versesLoading ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -538,8 +552,8 @@ export default function App() {
 
         {/* Detail panel */}
         {appMode === "bible" && activeVerse && (
-          <aside style={isMobile
-            ? { position: "fixed", top: `calc(${HEADER_H}px + env(safe-area-inset-top))`, left: 0, right: 0, bottom: 0, zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }
+          <aside aria-label="Study panel" style={isMobile
+            ? { position: "fixed", left: 0, right: 0, bottom: 0, height: sheetFull ? `calc(100dvh - ${HEADER_H}px - env(safe-area-inset-top))` : "55dvh", zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)", borderTop: "1px solid var(--border)", borderRadius: sheetFull ? 0 : "14px 14px 0 0", boxShadow: "0 -8px 24px rgba(0,0,0,0.12)", transition: "height 0.2s ease, border-radius 0.2s ease" }
             : { width: "380px", flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--background)", display: "flex", flexDirection: "column" }}>
             <DetailPanel
               verse={activeVerse}
@@ -548,7 +562,8 @@ export default function App() {
               tab={detailTab}
               onTabChange={setDetailTab}
               onWordSelect={(w) => setSelectedWord(prev => prev?.id === w.id ? null : w)}
-              onClose={() => { setActiveVerse(null); setSelectedWord(null); }}
+              onClose={closeStudy}
+              sheet={isMobile ? { full: sheetFull, onExpand: () => setSheetFull(true), onShrink: () => setSheetFull(false), onDismiss: closeStudy } : undefined}
               onNavigateTo={navigateTo}
               onCrossRefNavigate={(book, chapter, verse) => { navigateTo(book, chapter, verse); setDetailTab("lexicon"); }}
             />
@@ -801,7 +816,7 @@ function VerseRow({ verse, compact, isActive, selectedWord, commentaryCount, onT
     {layout?.heading && (
       <h2 style={{ fontFamily: UI, fontSize: "0.95rem", fontWeight: 600, lineHeight: 1.4, color: "var(--foreground)", margin: verse.verse > 1 ? "28px 8px 6px" : "4px 8px 6px" }}>{layout.heading}</h2>
     )}
-    <div onMouseEnter={() => { if (canHover()) setHovered(true); }} onMouseLeave={() => setHovered(false)}
+    <div data-verse={verse.verse} onMouseEnter={() => { if (canHover()) setHovered(true); }} onMouseLeave={() => setHovered(false)}
       style={{ borderRadius: "6px", background: isActive ? "var(--muted)" : hovered ? "var(--secondary)" : "transparent", transition: "background 0.08s", marginBottom: "2px", marginTop: layout?.heading ? 0 : gapAbove }}
     >
       <button onClick={onToggle} aria-expanded={isActive} style={{ width: "100%", textAlign: "left", display: "flex", gap: compact ? "10px" : "12px", padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", borderRadius: "6px" }}>
@@ -863,8 +878,35 @@ function InterlinearStrip({ verse, selectedWord, onWordSelect }: { verse: Script
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
 
-function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWordSelect, onClose, onNavigateTo, onCrossRefNavigate }: {
-  verse: ScriptureVerse; commentaries: Commentary[]; selectedWord: OriginalWord | null;
+interface SheetControls { full: boolean; onExpand: () => void; onShrink: () => void; onDismiss: () => void }
+
+// Grab handle on the phone's bottom sheet: tap to expand or shrink, swipe up
+// to expand, swipe down to shrink and then close.
+function SheetHandle({ sheet }: { sheet: SheetControls }) {
+  const startY = useRef<number | null>(null);
+  const swiped = useRef(false);
+  return (
+    <button
+      aria-label={sheet.full ? "Shrink study panel" : "Expand study panel"}
+      aria-expanded={sheet.full}
+      onPointerDown={e => { startY.current = e.clientY; swiped.current = false; }}
+      onPointerUp={e => {
+        if (startY.current === null) return;
+        const dy = e.clientY - startY.current;
+        startY.current = null;
+        if (dy > 40) { swiped.current = true; if (sheet.full) sheet.onShrink(); else sheet.onDismiss(); }
+        else if (dy < -40) { swiped.current = true; sheet.onExpand(); }
+      }}
+      onClick={() => { if (swiped.current) { swiped.current = false; return; } if (sheet.full) sheet.onShrink(); else sheet.onExpand(); }}
+      style={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%", height: "24px", border: "none", background: "transparent", cursor: "grab", touchAction: "none", flexShrink: 0 }}
+    >
+      <span aria-hidden="true" style={{ width: "36px", height: "4px", borderRadius: "2px", background: "var(--muted-foreground)", opacity: 0.4 }} />
+    </button>
+  );
+}
+
+function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWordSelect, onClose, sheet, onNavigateTo, onCrossRefNavigate }: {
+  verse: ScriptureVerse; commentaries: Commentary[]; selectedWord: OriginalWord | null; sheet?: SheetControls;
   tab: "lexicon" | "commentary" | "ai"; onTabChange: (t: "lexicon" | "commentary" | "ai") => void;
   onWordSelect: (w: OriginalWord) => void; onClose: () => void;
   onNavigateTo: (book: string, chapter: number, verse: number | null, pushHistory?: boolean) => void;
@@ -872,8 +914,9 @@ function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWo
 }) {
   const verseKey = `${verse.book} ${verse.chapter}:${verse.verse}`;
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ padding: "14px 16px 0", flexShrink: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      {sheet && <SheetHandle sheet={sheet} />}
+      <div style={{ padding: sheet ? "0 16px" : "14px 16px 0", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <span style={{ fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)" }}>{verseKey}</span>
           <button onClick={onClose} aria-label="Close study panel" style={{ ...iconBtn, margin: "-12px -12px -12px 0" }}
@@ -1224,18 +1267,21 @@ function CommentaryTab({ commentaries, verseKey }: { commentaries: Commentary[];
           <div style={{ padding: "10px 12px", borderRadius: "6px", background: "var(--muted)", marginBottom: "20px", fontSize: "0.8rem", fontFamily: UI, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
             These are <strong style={{ color: "var(--foreground)" }}>scholarly interpretations</strong>, not Scripture. Evaluate alongside the biblical text.
           </div>
-          {commentaries.map((c, i) => (
-            <article key={c.id} style={{ paddingBottom: "20px", marginBottom: "20px", borderBottom: i < commentaries.length - 1 ? "1px solid var(--border)" : "none" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginBottom: "4px" }}>
-                <span style={{ fontFamily: UI, fontSize: "0.875rem", fontWeight: 600, color: "var(--foreground)" }}>{c.author}</span>
-                <span style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{c.era}</span>
-              </div>
-              <div style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "10px" }}>{c.source}</div>
-              <blockquote style={{ fontFamily: BODY, fontSize: "0.9rem", lineHeight: 1.8, fontStyle: "italic", color: "var(--foreground)", margin: 0, paddingLeft: "12px", borderLeft: "2px solid var(--border)" }}>
-                &ldquo;{c.text}&rdquo;
-              </blockquote>
-            </article>
-          ))}
+          {commentaries.map((c, i) => {
+            const range = c.verseStart !== undefined && c.verseEnd !== undefined && c.verseEnd > c.verseStart
+              ? `On verses ${c.verseStart}–${c.verseEnd}` : null;
+            return (
+              <article key={c.id} style={{ paddingBottom: "20px", marginBottom: "20px", borderBottom: i < commentaries.length - 1 ? "1px solid var(--border)" : "none" }}>
+                <h3 style={{ fontFamily: UI, fontSize: "0.9rem", fontWeight: 600, color: "var(--foreground)", margin: "0 0 2px" }}>{c.author}</h3>
+                <div style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "10px", lineHeight: 1.5 }}>
+                  {[c.source, c.era, range].filter(Boolean).join(" · ")}
+                </div>
+                {c.text.split(/\n\s*\n/).map((para, j) => (
+                  <p key={j} style={{ fontFamily: BODY, fontSize: "0.95rem", lineHeight: 1.75, color: "var(--foreground)", margin: j ? "10px 0 0" : 0 }}>{para.trim()}</p>
+                ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>
