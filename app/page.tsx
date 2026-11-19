@@ -315,6 +315,13 @@ export default function App() {
           <aside style={isMobile
             ? { position: "fixed", top: `calc(${HEADER_H}px + env(safe-area-inset-top))`, left: 0, bottom: 0, width: "min(85vw, 300px)", zIndex: 40, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "var(--shadow-md)", paddingBottom: "env(safe-area-inset-bottom)" }
             : { width: "240px", flexShrink: 0, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+            {isMobile && (
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "16px 16px 12px", borderBottom: "1px solid var(--sidebar-border)", flexShrink: 0 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icons/icon-192.png" alt="" width={28} height={28} style={{ borderRadius: "7px" }} />
+                <span style={{ fontFamily: UI, fontSize: "1rem", fontWeight: 600, color: "var(--foreground)" }}>Unveiled</span>
+              </div>
+            )}
             {appMode === "bible" && (
               <SidebarNav
                 touch={isMobile}
