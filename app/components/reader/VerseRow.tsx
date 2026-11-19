@@ -60,7 +60,7 @@ export function InterlinearStrip({ verse, selectedWord, onWordSelect }: { verse:
       {verse.words.map(word => {
         const sel = selectedWord?.id === word.id;
         return (
-          <button key={word.id} onClick={() => onWordSelect(word)} aria-pressed={sel} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", minWidth: `${TAP}px`, padding: "6px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: sel ? "var(--background)" : "transparent", boxShadow: sel ? "0 0 0 1px var(--border), var(--shadow-sm)" : "none" }}
+          <button key={word.id} onClick={() => onWordSelect(word)} aria-pressed={sel} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", minWidth: `${TAP}px`, padding: "6px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: sel ? "var(--accent-soft)" : "transparent", boxShadow: sel ? "0 0 0 1px var(--border), var(--shadow-sm)" : "none" }}
             onMouseEnter={e => { if (!canHover()) return; if (!sel) e.currentTarget.style.background = "var(--hover)"; }}
             onMouseLeave={e => { if (!sel) e.currentTarget.style.background = "transparent"; }}
           >

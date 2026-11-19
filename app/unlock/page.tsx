@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen } from "lucide-react";
 
 function safeNext(): string {
   if (typeof window === "undefined") return "/";
@@ -42,7 +41,8 @@ export default function UnlockPage() {
     <main style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", background: "var(--background)", color: "var(--foreground)", fontFamily: "'Inter', system-ui, sans-serif" }}>
       <form onSubmit={submit} style={{ width: "100%", maxWidth: "320px", display: "flex", flexDirection: "column", gap: "14px", alignItems: "stretch" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-          <BookOpen size={28} style={{ color: "var(--accent-text)" }} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icons/icon-192.png" alt="" width={56} height={56} style={{ borderRadius: "13px", boxShadow: "var(--shadow-sm)" }} />
           <h1 style={{ fontSize: "1.25rem", fontWeight: 600, margin: 0 }}>Unveiled</h1>
           <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)", margin: 0 }}>Enter your passcode to continue</p>
         </div>

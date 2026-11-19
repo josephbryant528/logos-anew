@@ -397,8 +397,8 @@ export default function App() {
         {/* Detail panel */}
         {appMode === "bible" && activeVerse && (
           <aside aria-label="Study panel" style={isMobile
-            ? { position: "fixed", left: 0, right: 0, bottom: 0, height: sheetFull ? `calc(100dvh - ${HEADER_H}px - env(safe-area-inset-top))` : "55dvh", zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)", borderTop: "1px solid var(--border)", borderRadius: sheetFull ? 0 : "14px 14px 0 0", boxShadow: "var(--shadow-sheet)", transition: "height 0.2s ease, border-radius 0.2s ease" }
-            : { width: "380px", flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--background)", display: "flex", flexDirection: "column" }}>
+            ? { position: "fixed", left: 0, right: 0, bottom: 0, height: sheetFull ? `calc(100dvh - ${HEADER_H}px - env(safe-area-inset-top))` : "55dvh", zIndex: 50, background: "var(--card)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)", borderTop: "1px solid var(--border)", borderRadius: sheetFull ? 0 : "14px 14px 0 0", boxShadow: "var(--shadow-sheet)", transition: "height 0.2s ease, border-radius 0.2s ease" }
+            : { width: "380px", flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--card)", display: "flex", flexDirection: "column" }}>
             <DetailPanel
               verse={activeVerse}
               commentaries={commentaries}

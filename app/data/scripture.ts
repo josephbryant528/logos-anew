@@ -152,7 +152,7 @@ export const COMMENTARIES: Commentary[] = [
     text: "Mark how he baffles the attempt. He says 'In the beginning was the Word,' and does not say 'became' or 'came to be,' but 'was,' which word, when predicated of God, has no beginning... Observe too how the Evangelist uses the very same expressions respecting the Son as he uses concerning the Father. For as he says of the Father, 'God,' so he says of the Son, 'the Word was God.'"
   },
   {
-    id: "c3", source: "Matthew Henry's Commentary", author: "Matthew Henry", era: "1710 AD", verseKey: "John 1:1",
+    id: "c3", source: "Matthew Henry's Complete Commentary", author: "Matthew Henry", era: "1710 AD", verseKey: "John 1:1",
     text: "The eternity of Christ: 'In the beginning was the Word.' The Word existed not only at and before the beginning of the new-covenant dispensation, not only before the beginning of the Mosaic dispensation... but before the beginning of the world. When the beginning was, the Word was; which intimates that he had no beginning: he was when time itself began to be, and therefore before it."
   },
   {

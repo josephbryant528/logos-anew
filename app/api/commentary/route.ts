@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     book:    data.book,
     chapter: data.chapter,
     author:  'Matthew Henry',
-    era:     '1706',
+    era:     '1706 AD',
     source:  "Matthew Henry's Concise Commentary (Public Domain)",
     entries: data.entries,
   })
