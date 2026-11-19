@@ -119,3 +119,29 @@
     font-size: var(--font-size);
   }
 }
+
+/* Keyboard focus ring: shows for keyboard and switch users, not for taps or clicks. */
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+/* Loading placeholders breathe instead of sitting still. */
+@keyframes pulse {
+  50% { opacity: 0.4; }
+}
+
+/* Keyboard shortcut hints only make sense where there is a keyboard. */
+@media (hover: none) {
+  .kbd-hint { display: none; }
+}
+
+/* Respect the system Reduce Motion setting. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

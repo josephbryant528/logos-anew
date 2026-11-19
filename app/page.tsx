@@ -371,7 +371,7 @@ export default function App() {
       {/* Topbar */}
       <header style={{ height: `${HEADER_H}px`, display: "flex", alignItems: "center", gap: isMobile ? "2px" : "8px", padding: isMobile ? "0 4px" : "0 12px", borderBottom: "1px solid var(--border)", background: "var(--background)", flexShrink: 0 }}>
         <button style={iconBtn} aria-label="Books and menu" onClick={() => isMobile ? setDrawerOpen(o => !o) : setSidebarOpen(o => !o)}
-          onMouseEnter={e => (e.currentTarget.style.background = "var(--muted)")}
+          onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
           onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
         >
           <BookOpen size={18} style={{ color: "var(--muted-foreground)" }} />
@@ -379,7 +379,7 @@ export default function App() {
 
         {history.length > 0 && (
           <button style={{ ...iconBtn, gap: "4px", fontSize: "0.8rem", color: "var(--muted-foreground)" }} onClick={navigateBack}
-            onMouseEnter={e => (e.currentTarget.style.background = "var(--muted)")}
+            onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
           >
             <ArrowLeft size={14} />
@@ -613,7 +613,7 @@ function SidebarNav({ touch, navLevel, navBook, selectedBook, selectedChapter, o
             const sel = selectedBook === navBook.name && selectedChapter === ch;
             return (
               <button key={ch} onClick={() => onSelectChapter(navBook, ch)} aria-label={`Chapter ${ch}`} aria-current={sel ? "page" : undefined} style={{ height: `${touch ? TAP : 36}px`, borderRadius: "8px", border: "none", background: sel ? "var(--sidebar-accent)" : "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", fontVariantNumeric: "tabular-nums", color: "var(--foreground)", fontWeight: sel ? 600 : 400 }}
-                onMouseEnter={e => { if (!sel) e.currentTarget.style.background = "var(--sidebar-accent)"; }}
+                onMouseEnter={e => { if (!canHover()) return; if (!sel) e.currentTarget.style.background = "var(--sidebar-accent)"; }}
                 onMouseLeave={e => { if (!sel) e.currentTarget.style.background = "transparent"; }}
               >{ch}</button>
             );
@@ -634,7 +634,7 @@ function TestamentSection({ touch, label, books, selectedBook, onSelectBook }: {
         const active = b.name === selectedBook;
         return (
           <button key={b.name} onClick={() => onSelectBook(b)} style={{ width: "100%", minHeight: touch ? `${TAP}px` : "28px", textAlign: "left", padding: touch ? "0 16px" : "4px 12px", border: "none", background: active ? "var(--sidebar-accent)" : "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: active ? "var(--foreground)" : "var(--sidebar-foreground)", fontWeight: active ? 500 : 400, display: "flex", justifyContent: "space-between", alignItems: "center" }}
-            onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--sidebar-accent)"; }}
+            onMouseEnter={e => { if (!canHover()) return; if (!active) e.currentTarget.style.background = "var(--sidebar-accent)"; }}
             onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
           >
             <span>{b.name}</span>
@@ -649,7 +649,7 @@ function TestamentSection({ touch, label, books, selectedBook, onSelectBook }: {
 function SidebarItem({ icon, label, onClick, rightIcon, active, indent }: { icon: React.ReactNode; label: string; onClick: () => void; rightIcon?: React.ReactNode; active?: boolean; indent?: boolean }) {
   return (
     <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: "8px", padding: "4px 12px", paddingLeft: indent ? "28px" : "12px", border: "none", background: active ? "var(--sidebar-accent)" : "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: active ? "var(--foreground)" : "var(--sidebar-foreground)", fontWeight: active ? 500 : 400 }}
-      onMouseEnter={e => e.currentTarget.style.background = "var(--sidebar-accent)"}
+      onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--sidebar-accent)"; }}
       onMouseLeave={e => e.currentTarget.style.background = active ? "var(--sidebar-accent)" : "transparent"}
     >
       <span style={{ color: active ? "var(--accent)" : "var(--muted-foreground)", display: "flex" }}>{icon}</span>
@@ -658,6 +658,9 @@ function SidebarItem({ icon, label, onClick, rightIcon, active, indent }: { icon
     </button>
   );
 }
+
+// Touch screens fire mouseenter on tap and never fire mouseleave, which leaves hover colours stuck.
+const canHover = () => typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
 
 // Crossway requires this notice, the letters "ESV" and a link to esv.org on every page that shows ESV text.
 function EsvNotice({ padded }: { padded: boolean }) {
@@ -680,7 +683,7 @@ const iconBtn: React.CSSProperties = { minWidth: `${TAP}px`, minHeight: `${TAP}p
 function NavBtn({ onClick, disabled, label, children }: { onClick: () => void; disabled?: boolean; label: string; children: React.ReactNode }) {
   return (
     <button onClick={onClick} disabled={disabled} aria-label={label} title={label} style={{ ...iconBtn, opacity: disabled ? 0.3 : 1, cursor: disabled ? "default" : "pointer", color: "var(--muted-foreground)" }}
-      onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = "var(--muted)"; }}
+      onMouseEnter={e => { if (!canHover()) return; if (!disabled) e.currentTarget.style.background = "var(--muted)"; }}
       onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
     >{children}</button>
   );
@@ -694,10 +697,10 @@ function VerseRow({ verse, compact, isActive, selectedWord, commentaryCount, onT
 }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+    <div onMouseEnter={() => { if (canHover()) setHovered(true); }} onMouseLeave={() => setHovered(false)}
       style={{ borderRadius: "6px", background: isActive ? "var(--muted)" : hovered ? "var(--secondary)" : "transparent", transition: "background 0.08s", marginBottom: "2px" }}
     >
-      <button onClick={onToggle} style={{ width: "100%", textAlign: "left", display: "flex", gap: compact ? "10px" : "12px", padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", outline: "none", borderRadius: "6px" }}>
+      <button onClick={onToggle} aria-expanded={isActive} style={{ width: "100%", textAlign: "left", display: "flex", gap: compact ? "10px" : "12px", padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", borderRadius: "6px" }}>
         <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--muted-foreground)", minWidth: compact ? "20px" : "24px", paddingTop: "5px", flexShrink: 0, userSelect: "none", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
           {verse.verse}
           {compact && commentaryCount > 0 && (
@@ -733,8 +736,8 @@ function InterlinearStrip({ verse, selectedWord, onWordSelect }: { verse: Script
       {verse.words.map(word => {
         const sel = selectedWord?.id === word.id;
         return (
-          <button key={word.id} onClick={() => onWordSelect(word)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", minWidth: `${TAP}px`, padding: "6px 8px", borderRadius: "6px", border: "none", cursor: "pointer", outline: "none", background: sel ? "var(--background)" : "transparent", boxShadow: sel ? "0 0 0 1px var(--border), 0 1px 3px rgba(0,0,0,0.06)" : "none" }}
-            onMouseEnter={e => { if (!sel) e.currentTarget.style.background = "rgba(55,53,47,0.04)"; }}
+          <button key={word.id} onClick={() => onWordSelect(word)} aria-pressed={sel} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", minWidth: `${TAP}px`, padding: "6px 8px", borderRadius: "6px", border: "none", cursor: "pointer", background: sel ? "var(--background)" : "transparent", boxShadow: sel ? "0 0 0 1px var(--border), 0 1px 3px rgba(0,0,0,0.06)" : "none" }}
+            onMouseEnter={e => { if (!canHover()) return; if (!sel) e.currentTarget.style.background = "rgba(55,53,47,0.04)"; }}
             onMouseLeave={e => { if (!sel) e.currentTarget.style.background = "transparent"; }}
           >
             <span style={{ fontFamily: MONO, fontSize: "0.85rem", lineHeight: 1.3, color: sel ? "var(--accent-text)" : "var(--foreground)", direction: "ltr" }}>{word.transliteration}</span>
@@ -763,7 +766,7 @@ function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWo
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <span style={{ fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)" }}>{verseKey}</span>
           <button onClick={onClose} aria-label="Close study panel" style={{ ...iconBtn, margin: "-12px -12px -12px 0" }}
-            onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
+            onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
             <X size={18} style={{ color: "var(--muted-foreground)" }} />
@@ -959,7 +962,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: "6px", direction: isHebrew ? "rtl" : "ltr" }}>
           {verse.words.map(w => (
             <button key={w.id} onClick={() => onWordSelect(w)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: "2px", padding: "8px 6px", minWidth: 0, borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--foreground)", direction: "ltr", textAlign: "center" }}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
+              onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
               <span style={{ fontFamily: origFont, fontSize: isHebrew ? "1.1rem" : "1rem", lineHeight: 1.3, direction: isHebrew ? "rtl" : "ltr" }}>{w.original}</span>
@@ -1040,7 +1043,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
                     onClick={() => { if (parsed) onCrossRefNavigate(parsed.book, parsed.chapter, parsed.verse); }}
                     disabled={!parsed}
                     style={{ textAlign: "left", padding: "10px 12px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: parsed ? "pointer" : "default", display: "flex", flexDirection: "column", gap: "4px" }}
-                    onMouseEnter={e => { if (parsed) e.currentTarget.style.background = "var(--muted)"; }}
+                    onMouseEnter={e => { if (!canHover()) return; if (parsed) e.currentTarget.style.background = "var(--muted)"; }}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                   >
                     <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--accent-text)", fontWeight: 500 }}>
@@ -1056,7 +1059,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
                 <button
                   onClick={() => setCrossRefExpanded(true)}
                   style={{ minHeight: `${TAP}px`, padding: "8px 12px", borderRadius: "6px", border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.78rem", color: "var(--muted-foreground)" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
+                  onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
                   Show {hidden} more result{hidden !== 1 ? "s" : ""}
@@ -1066,7 +1069,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
                 <button
                   onClick={() => setCrossRefExpanded(false)}
                   style={{ minHeight: `${TAP}px`, padding: "8px 12px", borderRadius: "6px", border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.78rem", color: "var(--muted-foreground)" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
+                  onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
                   Show less
@@ -1083,7 +1086,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
           {verse.words.filter(w => w.id !== selectedWord.id).map(w => (
             <button key={w.id} onClick={() => onWordSelect(w)}
               style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px", minHeight: `${TAP}px`, minWidth: `${TAP}px`, padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer" }}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
+              onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
               <span style={{ fontFamily: MONO, fontSize: "0.78rem", color: "var(--foreground)" }}>{w.transliteration}</span>
@@ -1210,7 +1213,7 @@ function AIStudyTab({ verse, verseKey }: { verse: ScriptureVerse; verseKey: stri
               {SUGGESTED_PROMPTS.map(p => (
                 <button key={p} onClick={() => send(p)}
                   style={{ textAlign: "left", minHeight: `${TAP}px`, padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: "var(--muted-foreground)", lineHeight: 1.5 }}
-                  onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
+                  onMouseEnter={e => { if (canHover()) e.currentTarget.style.background = "var(--muted)"; }}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >{p}</button>
               ))}
@@ -1266,8 +1269,10 @@ function AIStudyTab({ verse, verseKey }: { verse: ScriptureVerse; verseKey: stri
             onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }}
             onKeyDown={handleKey}
             placeholder={`Ask about ${verseKey}…`}
+            aria-label={`Ask about ${verseKey}`}
+            enterKeyHint="send"
             rows={1}
-            style={{ flex: 1, resize: "none", border: "none", outline: "none", background: "transparent", fontFamily: UI, fontSize: "0.875rem", color: "var(--foreground)", lineHeight: 1.5, maxHeight: "120px", overflow: "auto" }}
+            style={{ flex: 1, resize: "none", border: "none", outline: "none", background: "transparent", fontFamily: UI, fontSize: "16px", color: "var(--foreground)", lineHeight: 1.5, maxHeight: "120px", overflow: "auto" }}
           />
           <button
             onClick={() => send(input)}
@@ -1278,7 +1283,7 @@ function AIStudyTab({ verse, verseKey }: { verse: ScriptureVerse; verseKey: stri
           </button>
         </div>
         <p style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", margin: "6px 0 0", textAlign: "center" }}>
-          Shift+Enter for new line · Enter to send · 20 messages/hr
+          <span className="kbd-hint">Shift+Enter for new line · Enter to send · </span>20 messages an hour
         </p>
       </div>
     </div>
