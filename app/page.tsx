@@ -196,14 +196,27 @@ export default function App() {
   const [versesLoading,  setVersesLoading]  = useState(false);
   const [versesError,    setVersesError]    = useState<string | null>(null);
   const chapterCache     = useRef<Map<string, ScriptureVerse[]>>(new Map());
-  const [textScale, setTextScale] = useState<number>(() => {
-    try { const v = parseFloat(localStorage.getItem("unveiled.textScale") ?? ""); return TEXT_SIZES.some(t => t.scale === v) ? v : 1; } catch { return 1; }
-  });
+  const [textScale, setTextScale] = useState<number>(1);
+  const [sizeToast, setSizeToast] = useState<string | null>(null);
+  const sizeToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    // Read the saved size after hydration so server and client markup match.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    try { const v = parseFloat(localStorage.getItem("unveiled.textScale") ?? ""); if (TEXT_SIZES.some(t => t.scale === v)) setTextScale(v); } catch {}
+  }, []);
   useEffect(() => {
     document.documentElement.style.setProperty("--verse-scale", String(textScale));
     try { localStorage.setItem("unveiled.textScale", String(textScale)); } catch {}
   }, [textScale]);
-  const cycleTextSize = () => setTextScale(s => { const i = TEXT_SIZES.findIndex(t => t.scale === s); return TEXT_SIZES[(i + 1) % TEXT_SIZES.length].scale; });
+  const textSizeName = (TEXT_SIZES.find(t => t.scale === textScale) ?? TEXT_SIZES[0]).name;
+  const cycleTextSize = () => {
+    const i = TEXT_SIZES.findIndex(t => t.scale === textScale);
+    const next = TEXT_SIZES[(i + 1) % TEXT_SIZES.length];
+    setTextScale(next.scale);
+    setSizeToast(`Text size: ${next.name}`);
+    if (sizeToastTimer.current) clearTimeout(sizeToastTimer.current);
+    sizeToastTimer.current = setTimeout(() => setSizeToast(null), 1400);
+  };
   const commentaryCache  = useRef<Map<string, Commentary[]>>(new Map());
 
   const fetchVerses = useCallback(async (book: string, chapter: number) => {
@@ -422,13 +435,16 @@ export default function App() {
             </NavBtn>
           </>
         )}
-        <NavBtn label="Text size" onClick={cycleTextSize}>
+        <NavBtn label={`Text size: ${textSizeName}`} onClick={cycleTextSize}>
           <span aria-hidden="true" style={{ fontFamily: BODY, fontSize: "1rem", color: "var(--muted-foreground)", lineHeight: 1 }}>A<span style={{ fontSize: "0.75em" }}>a</span></span>
         </NavBtn>
         <NavBtn label={darkMode ? "Light mode" : "Dark mode"} onClick={() => setDarkMode(d => !d)}>
           {darkMode ? <Sun size={17} style={{ color: "var(--muted-foreground)" }} /> : <Moon size={17} style={{ color: "var(--muted-foreground)" }} />}
         </NavBtn>
       </header>
+      {sizeToast && (
+        <div role="status" style={{ position: "fixed", top: 60, left: "50%", transform: "translateX(-50%)", zIndex: 60, padding: "6px 14px", borderRadius: 999, background: "var(--foreground)", color: "var(--background)", fontSize: "0.8rem", fontWeight: 500, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>{sizeToast}</div>
+      )}
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
 
