@@ -7,8 +7,9 @@ import {
 } from "./data/scripture";
 import {
   ChevronLeft, ChevronRight, X, Moon, Sun,
-  FileText, MessageSquare, BookOpen, ArrowLeft, Sparkles, Send,
+  FileText, MessageSquare, BookOpen, ArrowLeft, Sparkles, Send, MessageSquarePlus,
 } from "lucide-react";
+import FeedbackModal from "./components/FeedbackModal";
 
 const UI   = "'Inter', system-ui, sans-serif";
 const BODY = "'Lora', serif";
@@ -268,6 +269,7 @@ export default function App() {
 
   // On a phone the book list starts hidden and opens as a slide-over menu.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const showSidebar = isMobile ? drawerOpen : sidebarOpen;
   const closeDrawerOnMobile = () => { if (isMobile) setDrawerOpen(false); };
 
@@ -328,6 +330,14 @@ export default function App() {
     }
   };
 
+  // Where the reader was when they opened the feedback form, so the report says.
+  const feedbackContext = [
+    activeVerse ? `${selectedBook} ${selectedChapter}:${activeVerse.verse}` : `${selectedBook} ${selectedChapter}`,
+    selectedWord ? `word ${selectedWord.original} (${selectedWord.transliteration}${selectedWord.strongsNumber ? `, ${selectedWord.strongsNumber}` : ""})` : "",
+    activeVerse ? `${detailTab === "ai" ? "AI Study" : detailTab === "commentary" ? "Commentary" : "Lexicon"} tab` : "",
+    isMobile ? "phone layout" : "",
+  ].filter(Boolean).join(" · ");
+
   const handleSelectChapter = (book: BibleBook, ch: number) => {
     setSelectedBook(book.name);
     setSelectedChapter(ch);
@@ -381,6 +391,9 @@ export default function App() {
             </NavBtn>
           </>
         )}
+        <NavBtn onClick={() => setFeedbackOpen(true)} label="Send feedback">
+          <MessageSquarePlus size={15} style={{ color: "var(--muted-foreground)" }} />
+        </NavBtn>
         <NavBtn onClick={() => setDarkMode(d => !d)}>
           {darkMode ? <Sun size={15} style={{ color: "var(--muted-foreground)" }} /> : <Moon size={15} style={{ color: "var(--muted-foreground)" }} />}
         </NavBtn>
@@ -480,6 +493,8 @@ export default function App() {
           </aside>
         )}
       </div>
+
+      {feedbackOpen && <FeedbackModal context={feedbackContext} onClose={() => setFeedbackOpen(false)} />}
     </div>
   );
 }
@@ -619,9 +634,9 @@ function SidebarItem({ icon, label, onClick, rightIcon, active, indent }: { icon
 const backBtnStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "4px", padding: "4px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)" };
 const iconBtn: React.CSSProperties = { padding: "4px 6px", borderRadius: "4px", background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" };
 
-function NavBtn({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+function NavBtn({ onClick, disabled, label, children }: { onClick: () => void; disabled?: boolean; label?: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ ...iconBtn, opacity: disabled ? 0.3 : 1, cursor: disabled ? "default" : "pointer", color: "var(--muted-foreground)" }}
+    <button onClick={onClick} disabled={disabled} aria-label={label} title={label} style={{ ...iconBtn, opacity: disabled ? 0.3 : 1, cursor: disabled ? "default" : "pointer", color: "var(--muted-foreground)" }}
       onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = "var(--muted)"; }}
       onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
     >{children}</button>
