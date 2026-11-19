@@ -55,7 +55,7 @@ Return ONLY valid JSON in this exact format, with no other text before or after:
 {
   "totalCount": <integer — your best estimate of how many times this lemma appears in the ${testamentLabel}>,
   "results": [
-    {"reference": "<Book Chapter:Verse>", "quote": "<complete exact ESV text of that verse>"},
+    {"reference": "<Book Chapter:Verse>", "quote": "<complete exact ESV text of that verse>", "highlight": "<the exact word or short phrase, copied character-for-character from quote, that translates ${original} in this verse>"},
     ...up to 25 results
   ]
 }
@@ -66,6 +66,7 @@ Rules:
 - Prioritize theologically significant and contextually varied occurrences across different books
 - Search only within the ${testamentLabel}
 - Do not include the verse ${currentVerse}
+- "highlight" must appear verbatim inside "quote" (same spelling and capitalization), usually one to three English words
 - Use standard English book names (e.g. "Genesis", "1 Kings", "Song of Solomon", "Revelation")`
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })

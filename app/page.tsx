@@ -757,7 +757,32 @@ function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWo
 
 // ── Lexicon tab ───────────────────────────────────────────────────────────────
 
-interface CrossRef { reference: string; quote: string }
+interface CrossRef { reference: string; quote: string; highlight?: string }
+
+// Bold the English word(s) in a verse that translate the word being searched.
+// Uses the phrase the AI marked; falls back to the word's English gloss.
+function HighlightedQuote({ quote, highlight, gloss }: { quote: string; highlight?: string; gloss?: string }) {
+  const candidates = [highlight, gloss]
+    .map(t => (t ?? "").replace(/[<>\[\]]/g, "").replace(/[.,;:!?"'\u2018\u2019\u201c\u201d]+$/g, "").trim())
+    .filter(t => t.length > 0);
+  for (const term of candidates) {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|[^A-Za-z])(${escaped})(?![A-Za-z])`, "i");
+    const m = re.exec(quote);
+    if (m) {
+      const start = m.index + m[1].length;
+      const end = start + m[2].length;
+      return (
+        <>
+          {quote.slice(0, start)}
+          <strong style={{ fontWeight: 700, color: "var(--foreground)" }}>{quote.slice(start, end)}</strong>
+          {quote.slice(end)}
+        </>
+      );
+    }
+  }
+  return <>{quote}</>;
+}
 
 function parseVerseRef(ref: string): { book: string; chapter: number; verse: number } | null {
   // Match "Book Name Chapter:Verse" — book names may include numbers (e.g. "1 Kings")
@@ -916,7 +941,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
                       {ref.reference}
                     </span>
                     <p style={{ fontFamily: BODY, fontSize: "0.82rem", lineHeight: 1.65, color: "var(--muted-foreground)", margin: 0 }}>
-                      {ref.quote}
+                      <HighlightedQuote quote={ref.quote} highlight={ref.highlight} gloss={selectedWord.gloss} />
                     </p>
                   </button>
                 );
