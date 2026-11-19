@@ -18,6 +18,16 @@ export interface ScriptureVerse {
   words: OriginalWord[];
   text: string;
   translation: string;
+  layout?: VerseLayout;
+}
+
+/** How a verse sits on the page: poetry lines, paragraph and stanza breaks, and a section heading before it. */
+export interface VerseLayout {
+  lines: { text: string; indent: number }[];
+  poetry: boolean;
+  paraStart: boolean;
+  stanzaBreak: boolean;
+  heading?: string;
 }
 
 export interface Commentary {

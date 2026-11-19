@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 import {
-  PASSAGES, BIBLE_BOOKS, BibleBook, OriginalWord, ScriptureVerse,
+  PASSAGES, BIBLE_BOOKS, BibleBook, OriginalWord, ScriptureVerse, VerseLayout,
   getCommentariesForVerse, Commentary
 } from "./data/scripture";
 import {
@@ -18,6 +18,8 @@ const GR   = "'Noto Serif', serif";
 
 // Top bar height. Phone controls are at least 44px so they are easy to tap.
 const HEADER_H = 48;
+// Tapping Aa steps through these; the choice is remembered on this device.
+const TEXT_SIZES = [{ name: "Medium", scale: 1 }, { name: "Large", scale: 1.15 }, { name: "Extra large", scale: 1.3 }, { name: "Small", scale: 0.9 }];
 const TAP = 44;
 
 type NavLevel = "top" | "books" | "chapters";
@@ -194,6 +196,14 @@ export default function App() {
   const [versesLoading,  setVersesLoading]  = useState(false);
   const [versesError,    setVersesError]    = useState<string | null>(null);
   const chapterCache     = useRef<Map<string, ScriptureVerse[]>>(new Map());
+  const [textScale, setTextScale] = useState<number>(() => {
+    try { const v = parseFloat(localStorage.getItem("unveiled.textScale") ?? ""); return TEXT_SIZES.some(t => t.scale === v) ? v : 1; } catch { return 1; }
+  });
+  useEffect(() => {
+    document.documentElement.style.setProperty("--verse-scale", String(textScale));
+    try { localStorage.setItem("unveiled.textScale", String(textScale)); } catch {}
+  }, [textScale]);
+  const cycleTextSize = () => setTextScale(s => { const i = TEXT_SIZES.findIndex(t => t.scale === s); return TEXT_SIZES[(i + 1) % TEXT_SIZES.length].scale; });
   const commentaryCache  = useRef<Map<string, Commentary[]>>(new Map());
 
   const fetchVerses = useCallback(async (book: string, chapter: number) => {
@@ -237,6 +247,7 @@ export default function App() {
       }
 
       const verseTexts = splitEsvIntoVerses(esvData?.passage ?? '');
+      const layouts = parseEsvLayout(esvData?.passage ?? '');
       const lexVerses: ScriptureVerse[] = lexData?.verses ?? [];
       const bookMeta = BIBLE_BOOKS.find(b => b.name === book);
       const language = (bookMeta?.language ?? 'greek') as ScriptureVerse['language'];
@@ -244,15 +255,15 @@ export default function App() {
       let result: ScriptureVerse[] = [];
 
       if (lexVerses.length > 0) {
-        lexVerses.forEach(v => { v.text = verseTexts[v.verse] ?? ''; v.translation = 'ESV'; v.words = (v.words ?? []).map(cleanWord); });
+        lexVerses.forEach(v => { v.text = verseTexts[v.verse] ?? ''; v.layout = layouts[v.verse]; v.translation = 'ESV'; v.words = (v.words ?? []).map(cleanWord); });
         const interlinearNums = new Set(lexVerses.map(v => v.verse));
         const textOnlyVerses: ScriptureVerse[] = Object.entries(verseTexts)
           .filter(([n]) => !interlinearNums.has(parseInt(n)))
-          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, text, translation: 'ESV', words: [] }));
+          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, text, layout: layouts[parseInt(n)], translation: 'ESV', words: [] }));
         result = [...lexVerses, ...textOnlyVerses].sort((a, b) => a.verse - b.verse);
       } else if (Object.keys(verseTexts).length > 0) {
         result = Object.entries(verseTexts)
-          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, text, translation: 'ESV', words: [] }))
+          .map(([n, text]) => ({ book, chapter, verse: parseInt(n), language, text, layout: layouts[parseInt(n)], translation: 'ESV', words: [] }))
           .sort((a, b) => a.verse - b.verse);
       }
 
@@ -409,6 +420,9 @@ export default function App() {
             </NavBtn>
           </>
         )}
+        <NavBtn label="Text size" onClick={cycleTextSize}>
+          <span aria-hidden="true" style={{ fontFamily: BODY, fontSize: "1rem", color: "var(--muted-foreground)", lineHeight: 1 }}>A<span style={{ fontSize: "0.75em" }}>a</span></span>
+        </NavBtn>
         <NavBtn label={darkMode ? "Light mode" : "Dark mode"} onClick={() => setDarkMode(d => !d)}>
           {darkMode ? <Sun size={17} style={{ color: "var(--muted-foreground)" }} /> : <Moon size={17} style={{ color: "var(--muted-foreground)" }} />}
         </NavBtn>
@@ -445,14 +459,14 @@ export default function App() {
         {/* Main reading pane */}
         <main ref={mainRef} style={{ flex: 1, overflowY: "auto", display: appMode === "bible" ? "block" : "none" }}>
           {/* Tinted header band */}
-          <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: isMobile ? "24px 20px 18px" : "48px 64px 36px" }}>
+          <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: isMobile ? "16px 16px 12px" : "48px 64px 36px" }}>
             <div style={{ maxWidth: "820px" }}>
               {currentBookMeta && (
                 <div style={{ fontFamily: MONO, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--accent-text)", marginBottom: "10px" }}>
                   {currentBookMeta.testament === "OT" ? "Old Testament" : "New Testament"} · {langLabel(currentBookMeta.language)}
                 </div>
               )}
-              <h1 style={{ fontFamily: UI, fontSize: isMobile ? "1.6rem" : "2rem", fontWeight: 700, color: "var(--foreground)", marginBottom: "6px", lineHeight: 1.2 }}>
+              <h1 style={{ fontFamily: UI, fontSize: isMobile ? "1.4rem" : "2rem", fontWeight: 700, color: "var(--foreground)", marginBottom: "6px", lineHeight: 1.2 }}>
                 {selectedBook}
               </h1>
               <p style={{ fontFamily: UI, fontSize: "0.875rem", color: "var(--muted-foreground)", margin: 0 }}>
@@ -546,6 +560,72 @@ function cleanGloss(text: string) {
 }
 function cleanWord(w: OriginalWord): OriginalWord {
   return { ...w, original: cleanOriginal(w.original), transliteration: cleanTransliteration(w.transliteration), gloss: cleanGloss(w.gloss) };
+}
+
+// The ESV plain-text format carries the page layout in its whitespace:
+//   "\n\n  [9] ..."         a prose paragraph starts (indent 2, or 6 after poetry)
+//   "\n    line" / 8 spaces  a poetry line, at indent level 0 / 1
+//   "\n    \n    \n"       a stanza break
+//   an unindented line with no verse number is a section heading (or a psalm title)
+function parseEsvLayout(passage: string): Record<number, VerseLayout> {
+  const out: Record<number, VerseLayout> = {};
+  let current: VerseLayout | null = null;
+  let pendingHeading: string[] = [];
+  let pendingPara = true;
+  let blankRun = 0;
+  const marker = /[\[(](\d+)[\])]/g;
+
+  for (const raw of passage.split("\n")) {
+    if (raw.trim() === "") { blankRun++; continue; }
+    const ind = raw.length - raw.trimStart().length;
+    const body = raw.trim();
+    const hasMarker = /[\[(]\d+[\])]/.test(body);
+    if (ind === 0 && !hasMarker && blankRun > 0 || ind === 0 && !hasMarker && current === null) {
+      pendingHeading.push(body);
+      pendingPara = true;
+      blankRun = 0;
+      continue;
+    }
+    const poetry = ind >= 4 && ind % 4 === 0;
+    const level = poetry ? Math.max(0, ind / 4 - 1) : 0;
+    const stanza = blankRun >= 2;
+    if (!poetry && (blankRun > 0 || ind % 4 === 2)) pendingPara = true;
+    blankRun = 0;
+
+    // Split the line at verse numbers; text before the first number continues the current verse.
+    let last = 0; let m: RegExpExecArray | null; const pieces: { n: number | null; text: string }[] = [];
+    marker.lastIndex = 0;
+    let n: number | null = null;
+    while ((m = marker.exec(body)) !== null) {
+      pieces.push({ n, text: body.slice(last, m.index) });
+      n = parseInt(m[1]); last = m.index + m[0].length;
+    }
+    pieces.push({ n, text: body.slice(last) });
+
+    pieces.forEach((p, i) => {
+      const text = p.text.replace(/\s+/g, " ").trim();
+      if (p.n !== null) {
+        current = {
+          lines: [], poetry, paraStart: pendingPara, stanzaBreak: stanza && i === 1,
+          heading: pendingHeading.length ? pendingHeading.join(" · ") : undefined,
+        };
+        out[p.n] = current;
+        pendingHeading = []; pendingPara = false;
+      }
+      if (!current || !text) return;
+      if (poetry) {
+        current.poetry = true;
+        if (stanza && i === 0 && current.lines.length) current.lines.push({ text: "", indent: -1 });
+        // A poetry line split by a verse number is one printed line: the continuation keeps no new indent.
+        current.lines.push({ text, indent: i === 0 ? level : (i === 1 ? level : 0) });
+      } else {
+        const prev = current.lines[current.lines.length - 1];
+        if (prev && !current.poetry) prev.text += " " + text;
+        else current.lines.push({ text, indent: 0 });
+      }
+    });
+  }
+  return out;
 }
 
 // ESV API returns verse numbers as "(1)" — split the passage block into individual verses.
@@ -696,9 +776,15 @@ function VerseRow({ verse, compact, isActive, selectedWord, commentaryCount, onT
   commentaryCount: number; onToggle: () => void; onWordSelect: (w: OriginalWord) => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const layout = verse.layout;
+  const gapAbove = layout && verse.verse > 1 && (layout.paraStart || layout.stanzaBreak) ? "14px" : 0;
   return (
+    <>
+    {layout?.heading && (
+      <h2 style={{ fontFamily: UI, fontSize: "0.95rem", fontWeight: 600, lineHeight: 1.4, color: "var(--foreground)", margin: verse.verse > 1 ? "28px 8px 6px" : "4px 8px 6px" }}>{layout.heading}</h2>
+    )}
     <div onMouseEnter={() => { if (canHover()) setHovered(true); }} onMouseLeave={() => setHovered(false)}
-      style={{ borderRadius: "6px", background: isActive ? "var(--muted)" : hovered ? "var(--secondary)" : "transparent", transition: "background 0.08s", marginBottom: "2px" }}
+      style={{ borderRadius: "6px", background: isActive ? "var(--muted)" : hovered ? "var(--secondary)" : "transparent", transition: "background 0.08s", marginBottom: "2px", marginTop: layout?.heading ? 0 : gapAbove }}
     >
       <button onClick={onToggle} aria-expanded={isActive} style={{ width: "100%", textAlign: "left", display: "flex", gap: compact ? "10px" : "12px", padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", borderRadius: "6px" }}>
         <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--muted-foreground)", minWidth: compact ? "20px" : "24px", paddingTop: "5px", flexShrink: 0, userSelect: "none", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
@@ -707,7 +793,13 @@ function VerseRow({ verse, compact, isActive, selectedWord, commentaryCount, onT
             <span title={`${commentaryCount} commentary note${commentaryCount !== 1 ? "s" : ""}`} style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--accent-text)" }} />
           )}
         </span>
-        <span style={{ fontFamily: BODY, fontSize: "1rem", lineHeight: 1.85, color: "var(--foreground)", flex: 1 }}>{verse.text}</span>
+        <span style={{ fontFamily: BODY, fontSize: "calc(1rem * var(--verse-scale, 1))", lineHeight: 1.85, color: "var(--foreground)", flex: 1 }}>
+          {layout?.poetry
+            ? layout.lines.map((l, i) => l.indent < 0
+                ? <span key={i} aria-hidden="true" style={{ display: "block", height: "0.75em" }} />
+                : <span key={i} style={{ display: "block", paddingLeft: `${1.5 + l.indent * 1.5}em`, textIndent: "-1.5em" }}>{l.text}</span>)
+            : verse.text}
+        </span>
         {!compact && <div style={{ display: "flex", alignItems: "flex-start", gap: "4px", paddingTop: "4px", flexShrink: 0, opacity: hovered || isActive ? 1 : 0, transition: "opacity 0.1s" }}>
           <Chip>Lexicon</Chip>
           {commentaryCount > 0 && <Chip>{commentaryCount} note{commentaryCount !== 1 ? "s" : ""}</Chip>}
@@ -719,6 +811,7 @@ function VerseRow({ verse, compact, isActive, selectedWord, commentaryCount, onT
         </div>
       )}
     </div>
+    </>
   );
 }
 
