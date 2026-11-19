@@ -16,6 +16,10 @@ const MONO = "'DM Mono', monospace";
 const HE   = "'Noto Serif Hebrew', 'Noto Serif', serif";
 const GR   = "'Noto Serif', serif";
 
+// Top bar height. Phone controls are at least 44px so they are easy to tap.
+const HEADER_H = 48;
+const TAP = 44;
+
 type NavLevel = "top" | "books" | "chapters";
 type AppMode  = "bible" | "disciplines" | "prayer";
 
@@ -285,7 +289,31 @@ export default function App() {
   }, [activeVerse]);
 
   const currentBookMeta = BIBLE_BOOKS.find(b => b.name === selectedBook);
-  const chapterCount = currentBookMeta?.chapters ?? 1;
+
+  // The chapter before and after this one, crossing into the neighbouring book
+  // at either end (Genesis 1 has no previous, Revelation 22 no next).
+  const bookIndex = BIBLE_BOOKS.findIndex(b => b.name === selectedBook);
+  const prevLoc = selectedChapter > 1
+    ? { book: selectedBook, chapter: selectedChapter - 1 }
+    : bookIndex > 0 ? { book: BIBLE_BOOKS[bookIndex - 1].name, chapter: BIBLE_BOOKS[bookIndex - 1].chapters } : null;
+  const nextLoc = selectedChapter < (currentBookMeta?.chapters ?? 1)
+    ? { book: selectedBook, chapter: selectedChapter + 1 }
+    : bookIndex >= 0 && bookIndex < BIBLE_BOOKS.length - 1 ? { book: BIBLE_BOOKS[bookIndex + 1].name, chapter: 1 } : null;
+  const goToChapter = (loc: { book: string; chapter: number } | null) => {
+    if (!loc) return;
+    setSelectedBook(loc.book);
+    setSelectedChapter(loc.chapter);
+    setActiveVerse(null);
+    setSelectedWord(null);
+  };
+  const chapterLabel = (loc: { book: string; chapter: number }) =>
+    loc.book === selectedBook ? `Chapter ${loc.chapter}` : `${loc.book} ${loc.chapter}`;
+
+  // Start each chapter at the top.
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [selectedBook, selectedChapter]);
 
   const navigateTo = (book: string, chapter: number, verse: number | null, pushHistory = true) => {
     if (pushHistory) {
@@ -341,12 +369,12 @@ export default function App() {
     <div className={darkMode ? "dark" : ""} style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--background)", color: "var(--foreground)", fontFamily: UI, paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
 
       {/* Topbar */}
-      <header style={{ height: "45px", display: "flex", alignItems: "center", gap: "8px", padding: "0 12px", borderBottom: "1px solid var(--border)", background: "var(--background)", flexShrink: 0 }}>
+      <header style={{ height: `${HEADER_H}px`, display: "flex", alignItems: "center", gap: isMobile ? "2px" : "8px", padding: isMobile ? "0 4px" : "0 12px", borderBottom: "1px solid var(--border)", background: "var(--background)", flexShrink: 0 }}>
         <button style={iconBtn} aria-label="Books and menu" onClick={() => isMobile ? setDrawerOpen(o => !o) : setSidebarOpen(o => !o)}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--muted)")}
           onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
         >
-          <BookOpen size={16} style={{ color: "var(--muted-foreground)" }} />
+          <BookOpen size={18} style={{ color: "var(--muted-foreground)" }} />
         </button>
 
         {history.length > 0 && (
@@ -373,16 +401,16 @@ export default function App() {
 
         {appMode === "bible" && (
           <>
-            <NavBtn onClick={() => { if (selectedChapter > 1) { setSelectedChapter(c => c - 1); setActiveVerse(null); } }} disabled={selectedChapter <= 1}>
-              <ChevronLeft size={14} />
+            <NavBtn label="Previous chapter" onClick={() => goToChapter(prevLoc)} disabled={!prevLoc}>
+              <ChevronLeft size={18} />
             </NavBtn>
-            <NavBtn onClick={() => { if (selectedChapter < chapterCount) { setSelectedChapter(c => c + 1); setActiveVerse(null); } }} disabled={selectedChapter >= chapterCount}>
-              <ChevronRight size={14} />
+            <NavBtn label="Next chapter" onClick={() => goToChapter(nextLoc)} disabled={!nextLoc}>
+              <ChevronRight size={18} />
             </NavBtn>
           </>
         )}
-        <NavBtn onClick={() => setDarkMode(d => !d)}>
-          {darkMode ? <Sun size={15} style={{ color: "var(--muted-foreground)" }} /> : <Moon size={15} style={{ color: "var(--muted-foreground)" }} />}
+        <NavBtn label={darkMode ? "Light mode" : "Dark mode"} onClick={() => setDarkMode(d => !d)}>
+          {darkMode ? <Sun size={17} style={{ color: "var(--muted-foreground)" }} /> : <Moon size={17} style={{ color: "var(--muted-foreground)" }} />}
         </NavBtn>
       </header>
 
@@ -391,14 +419,15 @@ export default function App() {
         {/* Sidebar */}
         {showSidebar && isMobile && (
           <div onClick={() => setDrawerOpen(false)} aria-hidden
-            style={{ position: "fixed", inset: 0, top: "calc(45px + env(safe-area-inset-top))", background: "rgba(0,0,0,0.3)", zIndex: 39 }} />
+            style={{ position: "fixed", inset: 0, top: `calc(${HEADER_H}px + env(safe-area-inset-top))`, background: "rgba(0,0,0,0.3)", zIndex: 39 }} />
         )}
         {showSidebar && (
           <aside style={isMobile
-            ? { position: "fixed", top: "calc(45px + env(safe-area-inset-top))", left: 0, bottom: 0, width: "min(85vw, 300px)", zIndex: 40, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "2px 0 12px rgba(0,0,0,0.12)", paddingBottom: "env(safe-area-inset-bottom)" }
+            ? { position: "fixed", top: `calc(${HEADER_H}px + env(safe-area-inset-top))`, left: 0, bottom: 0, width: "min(85vw, 300px)", zIndex: 40, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "2px 0 12px rgba(0,0,0,0.12)", paddingBottom: "env(safe-area-inset-bottom)" }
             : { width: "240px", flexShrink: 0, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
             {appMode === "bible" && (
               <SidebarNav
+                touch={isMobile}
                 navLevel={navLevel}
                 navBook={navBook}
                 selectedBook={selectedBook}
@@ -414,12 +443,12 @@ export default function App() {
 
         {/* Main content area */}
         {/* Main reading pane */}
-        <main style={{ flex: 1, overflowY: "auto", display: appMode === "bible" ? "block" : "none" }}>
+        <main ref={mainRef} style={{ flex: 1, overflowY: "auto", display: appMode === "bible" ? "block" : "none" }}>
           {/* Tinted header band */}
           <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: isMobile ? "24px 20px 18px" : "48px 64px 36px" }}>
             <div style={{ maxWidth: "820px" }}>
               {currentBookMeta && (
-                <div style={{ fontFamily: MONO, fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--accent)", marginBottom: "10px" }}>
+                <div style={{ fontFamily: MONO, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--accent-text)", marginBottom: "10px" }}>
                   {currentBookMeta.testament === "OT" ? "Old Testament" : "New Testament"} · {langLabel(currentBookMeta.language)}
                 </div>
               )}
@@ -448,6 +477,7 @@ export default function App() {
                 {verses.map(verse => (
                   <VerseRow
                     key={verse.verse}
+                    compact={isMobile}
                     verse={verse}
                     isActive={activeVerse?.verse === verse.verse}
                     selectedWord={selectedWord}
@@ -456,6 +486,18 @@ export default function App() {
                     onWordSelect={(w) => setSelectedWord(prev => prev?.id === w.id ? null : w)}
                   />
                 ))}
+                <nav aria-label="Chapters" style={{ display: "flex", gap: "8px", marginTop: "32px", padding: isMobile ? "0 8px" : 0 }}>
+                  {prevLoc && (
+                    <button onClick={() => goToChapter(prevLoc)} style={chapterStepBtn}>
+                      <ChevronLeft size={16} style={{ flexShrink: 0 }} /><span>{chapterLabel(prevLoc)}</span>
+                    </button>
+                  )}
+                  {nextLoc && (
+                    <button onClick={() => goToChapter(nextLoc)} style={{ ...chapterStepBtn, justifyContent: "flex-end", marginLeft: "auto", textAlign: "right" }}>
+                      <span>{chapterLabel(nextLoc)}</span><ChevronRight size={16} style={{ flexShrink: 0 }} />
+                    </button>
+                  )}
+                </nav>
               </div>
             )}
           </div>
@@ -464,7 +506,7 @@ export default function App() {
         {/* Detail panel */}
         {appMode === "bible" && activeVerse && (
           <aside style={isMobile
-            ? { position: "fixed", top: "calc(45px + env(safe-area-inset-top))", left: 0, right: 0, bottom: 0, zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }
+            ? { position: "fixed", top: `calc(${HEADER_H}px + env(safe-area-inset-top))`, left: 0, right: 0, bottom: 0, zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }
             : { width: "380px", flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--background)", display: "flex", flexDirection: "column" }}>
             <DetailPanel
               verse={activeVerse}
@@ -527,8 +569,8 @@ function langLabel(lang: string) {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
-function SidebarNav({ navLevel, navBook, selectedBook, selectedChapter, onGoTop, onGoBooks, onSelectBook, onSelectChapter }: {
-  navLevel: NavLevel; navBook: BibleBook | null; selectedBook: string; selectedChapter: number;
+function SidebarNav({ touch, navLevel, navBook, selectedBook, selectedChapter, onGoTop, onGoBooks, onSelectBook, onSelectChapter }: {
+  touch: boolean; navLevel: NavLevel; navBook: BibleBook | null; selectedBook: string; selectedChapter: number;
   onGoTop: () => void; onGoBooks: () => void;
   onSelectBook: (b: BibleBook) => void; onSelectChapter: (b: BibleBook, ch: number) => void;
 }) {
@@ -546,8 +588,8 @@ function SidebarNav({ navLevel, navBook, selectedBook, selectedChapter, onGoTop,
     return (
       <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
         <div style={{ overflowY: "auto", flex: 1, paddingTop: "4px" }}>
-          <TestamentSection label="Old Testament" books={ot} selectedBook={selectedBook} onSelectBook={onSelectBook} />
-          <TestamentSection label="New Testament" books={nt} selectedBook={selectedBook} onSelectBook={onSelectBook} />
+          <TestamentSection touch={touch} label="Old Testament" books={ot} selectedBook={selectedBook} onSelectBook={onSelectBook} />
+          <TestamentSection touch={touch} label="New Testament" books={nt} selectedBook={selectedBook} onSelectBook={onSelectBook} />
         </div>
       </div>
     );
@@ -558,21 +600,21 @@ function SidebarNav({ navLevel, navBook, selectedBook, selectedChapter, onGoTop,
     return (
       <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
         <div style={{ padding: "8px 0 4px" }}>
-          <button onClick={onGoBooks} style={{ ...backBtnStyle, width: "100%" }}>
+          <button onClick={onGoBooks} style={{ ...backBtnStyle, width: "100%", minHeight: touch ? `${TAP}px` : "28px" }}>
             <ChevronLeft size={13} /> Books
           </button>
         </div>
-        <div style={{ padding: "6px 12px 2px", fontSize: "0.7rem", fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{navBook.name}</div>
-        <div style={{ padding: "0 12px 6px", fontSize: "0.7rem", color: "var(--muted-foreground)" }}>{langLabel(navBook.language)}</div>
+        <div style={{ padding: "6px 12px 2px", fontSize: "0.75rem", fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{navBook.name}</div>
+        <div style={{ padding: "0 12px 6px", fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{langLabel(navBook.language)}</div>
         <div style={{ height: "1px", background: "var(--sidebar-border)", margin: "0 12px 4px" }} />
-        <div style={{ overflowY: "auto", flex: 1, padding: "4px 0" }}>
+        <div style={{ overflowY: "auto", flex: 1, padding: "8px 12px 16px", display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${touch ? TAP : 36}px, 1fr))`, gap: "4px", alignContent: "start" }}>
           {chapters.map(ch => {
             const sel = selectedBook === navBook.name && selectedChapter === ch;
             return (
-              <button key={ch} onClick={() => onSelectChapter(navBook, ch)} style={{ width: "100%", textAlign: "left", padding: "4px 16px", border: "none", background: sel ? "var(--sidebar-accent)" : "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: sel ? "var(--foreground)" : "var(--muted-foreground)", fontWeight: sel ? 500 : 400 }}
+              <button key={ch} onClick={() => onSelectChapter(navBook, ch)} aria-label={`Chapter ${ch}`} aria-current={sel ? "page" : undefined} style={{ height: `${touch ? TAP : 36}px`, borderRadius: "8px", border: "none", background: sel ? "var(--sidebar-accent)" : "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", fontVariantNumeric: "tabular-nums", color: "var(--foreground)", fontWeight: sel ? 600 : 400 }}
                 onMouseEnter={e => { if (!sel) e.currentTarget.style.background = "var(--sidebar-accent)"; }}
                 onMouseLeave={e => { if (!sel) e.currentTarget.style.background = "transparent"; }}
-              >Chapter {ch}</button>
+              >{ch}</button>
             );
           })}
         </div>
@@ -583,14 +625,14 @@ function SidebarNav({ navLevel, navBook, selectedBook, selectedChapter, onGoTop,
   return null;
 }
 
-function TestamentSection({ label, books, selectedBook, onSelectBook }: { label: string; books: BibleBook[]; selectedBook: string; onSelectBook: (b: BibleBook) => void }) {
+function TestamentSection({ touch, label, books, selectedBook, onSelectBook }: { touch: boolean; label: string; books: BibleBook[]; selectedBook: string; onSelectBook: (b: BibleBook) => void }) {
   return (
     <div style={{ marginBottom: "8px" }}>
-      <div style={{ padding: "8px 12px 4px", fontSize: "0.68rem", fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+      <div style={{ padding: "8px 12px 4px", fontSize: "0.75rem", fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
       {books.map(b => {
         const active = b.name === selectedBook;
         return (
-          <button key={b.name} onClick={() => onSelectBook(b)} style={{ width: "100%", textAlign: "left", padding: "4px 12px", border: "none", background: active ? "var(--sidebar-accent)" : "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: active ? "var(--foreground)" : "var(--sidebar-foreground)", fontWeight: active ? 500 : 400, display: "flex", justifyContent: "space-between", alignItems: "center" }}
+          <button key={b.name} onClick={() => onSelectBook(b)} style={{ width: "100%", minHeight: touch ? `${TAP}px` : "28px", textAlign: "left", padding: touch ? "0 16px" : "4px 12px", border: "none", background: active ? "var(--sidebar-accent)" : "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: active ? "var(--foreground)" : "var(--sidebar-foreground)", fontWeight: active ? 500 : 400, display: "flex", justifyContent: "space-between", alignItems: "center" }}
             onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--sidebar-accent)"; }}
             onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
           >
@@ -616,12 +658,13 @@ function SidebarItem({ icon, label, onClick, rightIcon, active, indent }: { icon
   );
 }
 
+const chapterStepBtn: React.CSSProperties = { flex: 1, maxWidth: "50%", minHeight: `${TAP}px`, display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "8px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: "var(--foreground)" };
 const backBtnStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: "4px", padding: "4px 12px", border: "none", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)" };
-const iconBtn: React.CSSProperties = { padding: "4px 6px", borderRadius: "4px", background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" };
+const iconBtn: React.CSSProperties = { minWidth: `${TAP}px`, minHeight: `${TAP}px`, padding: "0 10px", borderRadius: "8px", background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", flexShrink: 0 };
 
-function NavBtn({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+function NavBtn({ onClick, disabled, label, children }: { onClick: () => void; disabled?: boolean; label: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} disabled={disabled} style={{ ...iconBtn, opacity: disabled ? 0.3 : 1, cursor: disabled ? "default" : "pointer", color: "var(--muted-foreground)" }}
+    <button onClick={onClick} disabled={disabled} aria-label={label} title={label} style={{ ...iconBtn, opacity: disabled ? 0.3 : 1, cursor: disabled ? "default" : "pointer", color: "var(--muted-foreground)" }}
       onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = "var(--muted)"; }}
       onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
     >{children}</button>
@@ -630,8 +673,8 @@ function NavBtn({ onClick, disabled, children }: { onClick: () => void; disabled
 
 // ── Verse row ─────────────────────────────────────────────────────────────────
 
-function VerseRow({ verse, isActive, selectedWord, commentaryCount, onToggle, onWordSelect }: {
-  verse: ScriptureVerse; isActive: boolean; selectedWord: OriginalWord | null;
+function VerseRow({ verse, compact, isActive, selectedWord, commentaryCount, onToggle, onWordSelect }: {
+  verse: ScriptureVerse; compact: boolean; isActive: boolean; selectedWord: OriginalWord | null;
   commentaryCount: number; onToggle: () => void; onWordSelect: (w: OriginalWord) => void;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -639,16 +682,21 @@ function VerseRow({ verse, isActive, selectedWord, commentaryCount, onToggle, on
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{ borderRadius: "6px", background: isActive ? "var(--muted)" : hovered ? "var(--secondary)" : "transparent", transition: "background 0.08s", marginBottom: "2px" }}
     >
-      <button onClick={onToggle} style={{ width: "100%", textAlign: "left", display: "flex", gap: "12px", padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", outline: "none", borderRadius: "6px" }}>
-        <span style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--muted-foreground)", minWidth: "24px", paddingTop: "5px", flexShrink: 0, userSelect: "none" }}>{verse.verse}</span>
+      <button onClick={onToggle} style={{ width: "100%", textAlign: "left", display: "flex", gap: compact ? "10px" : "12px", padding: "6px 8px", border: "none", background: "transparent", cursor: "pointer", outline: "none", borderRadius: "6px" }}>
+        <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--muted-foreground)", minWidth: compact ? "20px" : "24px", paddingTop: "5px", flexShrink: 0, userSelect: "none", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
+          {verse.verse}
+          {compact && commentaryCount > 0 && (
+            <span title={`${commentaryCount} commentary note${commentaryCount !== 1 ? "s" : ""}`} style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--accent-text)" }} />
+          )}
+        </span>
         <span style={{ fontFamily: BODY, fontSize: "1rem", lineHeight: 1.85, color: "var(--foreground)", flex: 1 }}>{verse.text}</span>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "4px", paddingTop: "4px", flexShrink: 0, opacity: hovered || isActive ? 1 : 0, transition: "opacity 0.1s" }}>
+        {!compact && <div style={{ display: "flex", alignItems: "flex-start", gap: "4px", paddingTop: "4px", flexShrink: 0, opacity: hovered || isActive ? 1 : 0, transition: "opacity 0.1s" }}>
           <Chip>Lexicon</Chip>
           {commentaryCount > 0 && <Chip>{commentaryCount} note{commentaryCount !== 1 ? "s" : ""}</Chip>}
-        </div>
+        </div>}
       </button>
       {isActive && (
-        <div style={{ padding: "4px 8px 12px 44px" }}>
+        <div style={{ padding: compact ? "4px 8px 12px 38px" : "4px 8px 12px 44px" }}>
           <InterlinearStrip verse={verse} selectedWord={selectedWord} onWordSelect={onWordSelect} />
         </div>
       )}
@@ -657,7 +705,7 @@ function VerseRow({ verse, isActive, selectedWord, commentaryCount, onToggle, on
 }
 
 function Chip({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontFamily: UI, fontSize: "0.68rem", padding: "1px 6px", borderRadius: "4px", background: "var(--border)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{children}</span>;
+  return <span style={{ fontFamily: UI, fontSize: "0.75rem", padding: "1px 6px", borderRadius: "4px", background: "var(--border)", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>{children}</span>;
 }
 
 // ── Interlinear strip ─────────────────────────────────────────────────────────
@@ -670,13 +718,13 @@ function InterlinearStrip({ verse, selectedWord, onWordSelect }: { verse: Script
       {verse.words.map(word => {
         const sel = selectedWord?.id === word.id;
         return (
-          <button key={word.id} onClick={() => onWordSelect(word)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "6px 8px", borderRadius: "6px", border: "none", cursor: "pointer", outline: "none", background: sel ? "var(--background)" : "transparent", boxShadow: sel ? "0 0 0 1px var(--border), 0 1px 3px rgba(0,0,0,0.06)" : "none" }}
+          <button key={word.id} onClick={() => onWordSelect(word)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", minWidth: `${TAP}px`, padding: "6px 8px", borderRadius: "6px", border: "none", cursor: "pointer", outline: "none", background: sel ? "var(--background)" : "transparent", boxShadow: sel ? "0 0 0 1px var(--border), 0 1px 3px rgba(0,0,0,0.06)" : "none" }}
             onMouseEnter={e => { if (!sel) e.currentTarget.style.background = "rgba(55,53,47,0.04)"; }}
             onMouseLeave={e => { if (!sel) e.currentTarget.style.background = "transparent"; }}
           >
-            <span style={{ fontFamily: MONO, fontSize: "0.85rem", lineHeight: 1.3, color: sel ? "var(--accent)" : "var(--foreground)", direction: "ltr" }}>{word.transliteration}</span>
+            <span style={{ fontFamily: MONO, fontSize: "0.85rem", lineHeight: 1.3, color: sel ? "var(--accent-text)" : "var(--foreground)", direction: "ltr" }}>{word.transliteration}</span>
             <span style={{ fontFamily: origFont, fontSize: isHebrew ? "0.85rem" : "0.78rem", color: "var(--muted-foreground)", direction: isHebrew ? "rtl" : "ltr" }}>{word.original}</span>
-            <span style={{ fontFamily: UI, fontSize: "0.65rem", color: "var(--muted-foreground)", direction: "ltr" }}>{word.gloss}</span>
+            <span style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", direction: "ltr" }}>{word.gloss}</span>
           </button>
         );
       })}
@@ -699,20 +747,20 @@ function DetailPanel({ verse, commentaries, selectedWord, tab, onTabChange, onWo
       <div style={{ padding: "14px 16px 0", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <span style={{ fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)" }}>{verseKey}</span>
-          <button onClick={onClose} style={iconBtn}
+          <button onClick={onClose} aria-label="Close study panel" style={{ ...iconBtn, margin: "-12px -12px -12px 0" }}
             onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
-            <X size={14} style={{ color: "var(--muted-foreground)" }} />
+            <X size={18} style={{ color: "var(--muted-foreground)" }} />
           </button>
         </div>
-        <div style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
+        <div role="tablist" style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
           {([
             { key: "lexicon" as const,    icon: <FileText size={13} />,      label: "Lexicon" },
             { key: "commentary" as const, icon: <MessageSquare size={13} />, label: `Commentary${commentaries.length > 0 ? ` (${commentaries.length})` : ""}` },
             { key: "ai" as const,         icon: <Sparkles size={13} />,      label: "AI Study" },
           ]).map(t => (
-            <button key={t.key} onClick={() => onTabChange(t.key)} style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.8rem", color: tab === t.key ? "var(--foreground)" : "var(--muted-foreground)", borderBottom: tab === t.key ? "2px solid var(--foreground)" : "2px solid transparent", marginBottom: "-1px" }}>
+            <button key={t.key} onClick={() => onTabChange(t.key)} role="tab" aria-selected={tab === t.key} style={{ display: "flex", alignItems: "center", gap: "5px", minHeight: `${TAP}px`, padding: "0 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.8rem", color: tab === t.key ? "var(--foreground)" : "var(--muted-foreground)", borderBottom: tab === t.key ? "2px solid var(--foreground)" : "2px solid transparent", marginBottom: "-1px" }}>
               {t.icon} {t.label}
             </button>
           ))}
@@ -900,8 +948,8 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
               <span style={{ fontFamily: origFont, fontSize: isHebrew ? "1.1rem" : "1rem", lineHeight: 1.3, direction: isHebrew ? "rtl" : "ltr" }}>{w.original}</span>
-              <span style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--muted-foreground)", overflowWrap: "anywhere" }}>{w.transliteration}</span>
-              <span style={{ fontFamily: UI, fontSize: "0.72rem", fontWeight: 500, lineHeight: 1.3, color: "var(--accent)" }}>{w.gloss}</span>
+              <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--muted-foreground)", overflowWrap: "anywhere" }}>{w.transliteration}</span>
+              <span style={{ fontFamily: UI, fontSize: "0.75rem", fontWeight: 500, lineHeight: 1.3, color: "var(--accent-text)" }}>{w.gloss}</span>
             </button>
           ))}
         </div>
@@ -927,17 +975,17 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
       </div>
 
       <div style={{ borderLeft: "3px solid var(--border)", paddingLeft: "12px" }}>
-        <div style={{ fontFamily: UI, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)", marginBottom: "6px" }}>Lexical Notes</div>
+        <div style={{ fontFamily: UI, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)", marginBottom: "6px" }}>Lexical Notes</div>
         <p style={{ fontFamily: BODY, fontSize: "0.9rem", lineHeight: 1.8, color: "var(--foreground)", margin: 0 }}>{selectedWord.extendedDefinition}</p>
       </div>
 
       <div>
         <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginBottom: "8px" }}>
-          <div style={{ fontFamily: UI, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)" }}>
+          <div style={{ fontFamily: UI, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)" }}>
             Used elsewhere in Scripture
           </div>
           {crossRefTotal !== null && (
-            <span style={{ fontFamily: MONO, fontSize: "0.68rem", color: "var(--muted-foreground)" }}>
+            <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--muted-foreground)" }}>
               {crossRefTotal.toLocaleString()}×
             </span>
           )}
@@ -980,10 +1028,10 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
                     onMouseEnter={e => { if (parsed) e.currentTarget.style.background = "var(--muted)"; }}
                     onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                   >
-                    <span style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--accent)", fontWeight: 500 }}>
+                    <span style={{ fontFamily: MONO, fontSize: "0.75rem", color: "var(--accent-text)", fontWeight: 500 }}>
                       {ref.reference}
                     </span>
-                    <p style={{ fontFamily: BODY, fontSize: "0.82rem", lineHeight: 1.65, color: "var(--muted-foreground)", margin: 0 }}>
+                    <p style={{ fontFamily: BODY, fontSize: "0.82rem", lineHeight: 1.65, color: "var(--foreground)", margin: 0 }}>
                       <HighlightedQuote quote={ref.quote} highlight={ref.highlight} gloss={selectedWord.gloss} />
                     </p>
                   </button>
@@ -992,7 +1040,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
               {!crossRefExpanded && hidden > 0 && (
                 <button
                   onClick={() => setCrossRefExpanded(true)}
-                  style={{ padding: "8px 12px", borderRadius: "6px", border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.78rem", color: "var(--muted-foreground)" }}
+                  style={{ minHeight: `${TAP}px`, padding: "8px 12px", borderRadius: "6px", border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.78rem", color: "var(--muted-foreground)" }}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
@@ -1002,7 +1050,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
               {crossRefExpanded && crossRefs.length > 10 && (
                 <button
                   onClick={() => setCrossRefExpanded(false)}
-                  style={{ padding: "8px 12px", borderRadius: "6px", border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.78rem", color: "var(--muted-foreground)" }}
+                  style={{ minHeight: `${TAP}px`, padding: "8px 12px", borderRadius: "6px", border: "1px dashed var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.78rem", color: "var(--muted-foreground)" }}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >
@@ -1015,11 +1063,11 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
       </div>
 
       <div>
-        <div style={{ fontFamily: UI, fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)", marginBottom: "8px" }}>Other words in this verse</div>
+        <div style={{ fontFamily: UI, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-foreground)", marginBottom: "8px" }}>Other words in this verse</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
           {verse.words.filter(w => w.id !== selectedWord.id).map(w => (
             <button key={w.id} onClick={() => onWordSelect(w)}
-              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1px", padding: "4px 10px", borderRadius: "4px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer" }}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px", minHeight: `${TAP}px`, minWidth: `${TAP}px`, padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer" }}
               onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
@@ -1053,7 +1101,7 @@ function CommentaryTab({ commentaries, verseKey }: { commentaries: Commentary[];
                 <span style={{ fontFamily: UI, fontSize: "0.875rem", fontWeight: 600, color: "var(--foreground)" }}>{c.author}</span>
                 <span style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{c.era}</span>
               </div>
-              <div style={{ fontFamily: UI, fontSize: "0.72rem", color: "var(--muted-foreground)", marginBottom: "10px" }}>{c.source}</div>
+              <div style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "10px" }}>{c.source}</div>
               <blockquote style={{ fontFamily: BODY, fontSize: "0.9rem", lineHeight: 1.8, fontStyle: "italic", color: "var(--foreground)", margin: 0, paddingLeft: "12px", borderLeft: "2px solid var(--border)" }}>
                 &ldquo;{c.text}&rdquo;
               </blockquote>
@@ -1146,7 +1194,7 @@ function AIStudyTab({ verse, verseKey }: { verse: ScriptureVerse; verseKey: stri
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {SUGGESTED_PROMPTS.map(p => (
                 <button key={p} onClick={() => send(p)}
-                  style={{ textAlign: "left", padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.8rem", color: "var(--muted-foreground)", lineHeight: 1.5 }}
+                  style={{ textAlign: "left", minHeight: `${TAP}px`, padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontFamily: UI, fontSize: "0.875rem", color: "var(--muted-foreground)", lineHeight: 1.5 }}
                   onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
                   onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                 >{p}</button>
@@ -1157,7 +1205,7 @@ function AIStudyTab({ verse, verseKey }: { verse: ScriptureVerse; verseKey: stri
 
         {messages.map((m, i) => (
           <div key={i} style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
-            <span style={{ fontFamily: UI, fontSize: "0.68rem", color: "var(--muted-foreground)", marginBottom: "2px" }}>
+            <span style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "2px" }}>
               {m.role === "user" ? "You" : "AI Study"}
             </span>
             <div style={{
@@ -1178,7 +1226,7 @@ function AIStudyTab({ verse, verseKey }: { verse: ScriptureVerse; verseKey: stri
 
         {loading && (
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ fontFamily: UI, fontSize: "0.68rem", color: "var(--muted-foreground)" }}>AI Study</span>
+            <span style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)" }}>AI Study</span>
             <div style={{ display: "flex", gap: "3px", paddingLeft: "4px" }}>
               {[0,1,2].map(i => (
                 <span key={i} style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--muted-foreground)", opacity: 0.5, animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
@@ -1209,12 +1257,12 @@ function AIStudyTab({ verse, verseKey }: { verse: ScriptureVerse; verseKey: stri
           <button
             onClick={() => send(input)}
             disabled={!input.trim() || loading}
-            style={{ flexShrink: 0, padding: "6px", borderRadius: "6px", border: "none", background: input.trim() && !loading ? "var(--foreground)" : "transparent", cursor: input.trim() && !loading ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}
+            aria-label="Send" style={{ flexShrink: 0, width: "36px", height: "36px", margin: "-4px -6px -4px 0", borderRadius: "8px", border: "none", background: input.trim() && !loading ? "var(--foreground)" : "transparent", cursor: input.trim() && !loading ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}
           >
-            <Send size={14} style={{ color: input.trim() && !loading ? "var(--background)" : "var(--muted-foreground)" }} />
+            <Send size={16} style={{ color: input.trim() && !loading ? "var(--background)" : "var(--muted-foreground)" }} />
           </button>
         </div>
-        <p style={{ fontFamily: UI, fontSize: "0.68rem", color: "var(--muted-foreground)", margin: "6px 0 0", textAlign: "center" }}>
+        <p style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", margin: "6px 0 0", textAlign: "center" }}>
           Shift+Enter for new line · Enter to send · 20 messages/hr
         </p>
       </div>
