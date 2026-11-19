@@ -825,12 +825,16 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
     return (
       <div>
         <p style={{ fontFamily: UI, fontSize: "0.85rem", color: "var(--muted-foreground)", marginBottom: "16px", lineHeight: 1.6 }}>Select a word to view its lexical entry.</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", direction: isHebrew ? "rtl" : "ltr" }}>
           {verse.words.map(w => (
-            <button key={w.id} onClick={() => onWordSelect(w)} style={{ fontFamily: origFont, fontSize: isHebrew ? "1.1rem" : "1rem", padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--foreground)" }}
+            <button key={w.id} onClick={() => onWordSelect(w)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "6px 10px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--foreground)", direction: "ltr" }}
               onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >{w.original}</button>
+            >
+              <span style={{ fontFamily: origFont, fontSize: isHebrew ? "1.1rem" : "1rem", lineHeight: 1.3, direction: isHebrew ? "rtl" : "ltr" }}>{w.original}</span>
+              <span style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--muted-foreground)" }}>{w.transliteration}</span>
+              <span style={{ fontFamily: UI, fontSize: "0.72rem", fontWeight: 500, color: "var(--accent)" }}>{w.gloss}</span>
+            </button>
           ))}
         </div>
       </div>
