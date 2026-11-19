@@ -9,12 +9,12 @@ const notoSerif = Noto_Serif({ subsets: ["latin"], weight: ["400","600"], style:
 const notoSerifHebrew = Noto_Serif_Hebrew({ subsets: ["hebrew"], weight: ["300","400","600"], variable: "--font-noto-serif-hebrew" });
 
 export const metadata: Metadata = {
-  title: "Verbum",
+  title: "Unveiled",
   description: "Scripture study with interlinear lexicon and sourced commentary",
-  applicationName: "Logos Anew",
+  applicationName: "Unveiled",
   appleWebApp: {
     capable: true,
-    title: "Logos Anew",
+    title: "Unveiled",
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false },

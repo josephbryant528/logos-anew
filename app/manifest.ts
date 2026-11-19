@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Logos Anew",
-    short_name: "Logos Anew",
+    name: "Unveiled",
+    short_name: "Unveiled",
     description: "Scripture study with interlinear lexicon and sourced commentary",
     start_url: "/",
     scope: "/",
