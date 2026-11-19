@@ -8,10 +8,7 @@ import {
 import {
   ChevronLeft, ChevronRight, X, Moon, Sun,
   FileText, MessageSquare, BookOpen, ArrowLeft, Sparkles, Send,
-  Layers, MessageCircle
 } from "lucide-react";
-import { DisciplinesDashboard } from "./components/DisciplinesDashboard";
-import { PrayerLog } from "./components/PrayerLog";
 
 const UI   = "'Inter', system-ui, sans-serif";
 const BODY = "'Lora', serif";
@@ -176,7 +173,7 @@ function useIsMobile() {
 
 export default function App() {
   const isMobile = useIsMobile();
-  const [navLevel, setNavLevel] = useState<NavLevel>("top");
+  const [navLevel, setNavLevel] = useState<NavLevel>("books");
   const [navBook,  setNavBook]  = useState<BibleBook | null>(null);
 
   const [selectedBook,    setSelectedBook]    = useState("John");
@@ -186,7 +183,7 @@ export default function App() {
   const [detailTab,       setDetailTab]       = useState<"lexicon" | "commentary" | "ai">("lexicon");
 
   const [history, setHistory] = useState<Location[]>([]);
-  const [appMode,        setAppMode]        = useState<AppMode>("bible");
+  const appMode = "bible" as AppMode; // Disciplines and Prayer Log are hidden for now
   const [darkMode,       setDarkMode]       = useState(false);
   const [sidebarOpen,    setSidebarOpen]    = useState(true);
   const [dynamicVerses,  setDynamicVerses]  = useState<ScriptureVerse[]>([]);
@@ -369,17 +366,9 @@ export default function App() {
               <span style={{ color: "var(--border)" }}>/</span>
             </>
           )}
-          {appMode === "bible" ? (
-            <>
-              <span style={{ color: "var(--foreground)", fontWeight: 500 }}>{selectedBook}</span>
-              <span style={{ color: "var(--border)" }}>/</span>
-              <span style={{ color: "var(--foreground)", fontWeight: 500 }}>{isMobile ? selectedChapter : `Chapter ${selectedChapter}`}</span>
-            </>
-          ) : appMode === "disciplines" ? (
-            <span style={{ color: "var(--foreground)", fontWeight: 500 }}>Disciplines</span>
-          ) : (
-            <span style={{ color: "var(--foreground)", fontWeight: 500 }}>Prayer Log</span>
-          )}
+          <span style={{ color: "var(--foreground)", fontWeight: 500 }}>{selectedBook}</span>
+          <span style={{ color: "var(--border)" }}>/</span>
+          <span style={{ color: "var(--foreground)", fontWeight: 500 }}>{isMobile ? selectedChapter : `Chapter ${selectedChapter}`}</span>
         </div>
 
         {appMode === "bible" && (
@@ -408,29 +397,6 @@ export default function App() {
           <aside style={isMobile
             ? { position: "fixed", top: "45px", left: 0, bottom: 0, width: "min(85vw, 300px)", zIndex: 40, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "2px 0 12px rgba(0,0,0,0.12)", paddingBottom: "env(safe-area-inset-bottom)" }
             : { width: "240px", flexShrink: 0, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
-            {/* Mode switcher */}
-            <div style={{ padding: "8px 0", borderBottom: "1px solid var(--sidebar-border)" }}>
-              <SidebarItem
-                icon={<BookOpen size={14} />}
-                label="Bible"
-                active={appMode === "bible"}
-                onClick={() => setAppMode("bible")}
-                rightIcon={appMode === "bible" ? <ChevronRight size={13} style={{ color: "var(--muted-foreground)" }} /> : undefined}
-              />
-              <SidebarItem
-                icon={<Layers size={14} />}
-                label="Disciplines"
-                active={appMode === "disciplines"}
-                onClick={() => { setAppMode("disciplines"); closeDrawerOnMobile(); }}
-              />
-              <SidebarItem
-                icon={<MessageCircle size={14} />}
-                label="Prayer Log"
-                active={appMode === "prayer"}
-                onClick={() => { setAppMode("prayer"); closeDrawerOnMobile(); }}
-                indent
-              />
-            </div>
             {appMode === "bible" && (
               <SidebarNav
                 navLevel={navLevel}
@@ -447,17 +413,6 @@ export default function App() {
         )}
 
         {/* Main content area */}
-        {appMode === "disciplines" && (
-          <main style={{ flex: 1, overflowY: "auto" }}>
-            <DisciplinesDashboard onViewPrayerLog={() => setAppMode("prayer")} />
-          </main>
-        )}
-        {appMode === "prayer" && (
-          <main style={{ flex: 1, overflowY: "auto" }}>
-            <PrayerLog />
-          </main>
-        )}
-
         {/* Main reading pane */}
         <main style={{ flex: 1, overflowY: "auto", display: appMode === "bible" ? "block" : "none" }}>
           {/* Tinted header band */}
@@ -569,13 +524,7 @@ function SidebarNav({ navLevel, navBook, selectedBook, selectedChapter, onGoTop,
     const nt = BIBLE_BOOKS.filter(b => b.testament === "NT");
     return (
       <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-        <div style={{ padding: "8px 0 4px" }}>
-          <button onClick={onGoTop} style={{ ...backBtnStyle, width: "100%" }}>
-            <ChevronLeft size={13} /> Bible
-          </button>
-        </div>
-        <div style={{ height: "1px", background: "var(--sidebar-border)", margin: "0 12px 4px" }} />
-        <div style={{ overflowY: "auto", flex: 1 }}>
+        <div style={{ overflowY: "auto", flex: 1, paddingTop: "4px" }}>
           <TestamentSection label="Old Testament" books={ot} selectedBook={selectedBook} onSelectBook={onSelectBook} />
           <TestamentSection label="New Testament" books={nt} selectedBook={selectedBook} onSelectBook={onSelectBook} />
         </div>
