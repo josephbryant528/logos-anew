@@ -580,6 +580,7 @@ function cleanOriginal(text: string) {
   return text
     .replace(/[\u0591-\u05AF\u05BD]/g, "") // Hebrew cantillation accents and meteg
     .replace(/[\/\\\u05C3\u05BE:]/g, "") // morpheme breaks, sof pasuq, maqaf
+    .replace(/[\u00B6\u00A7]/g, "") // paragraph marks from the source text
     .trim();
 }
 function cleanTransliteration(text: string) {
@@ -838,8 +839,9 @@ function VerseRow({ verse, compact, isActive, selectedWord, commentaryCount, onT
           {commentaryCount > 0 && <Chip>{commentaryCount} note{commentaryCount !== 1 ? "s" : ""}</Chip>}
         </div>}
       </button>
-      {isActive && (
-        <div style={{ padding: compact ? "4px 8px 12px 38px" : "4px 8px 12px 44px" }}>
+      {/* On a phone the study sheet already shows these words, so skip the copy here. */}
+      {isActive && !compact && (
+        <div style={{ padding: "4px 8px 12px 44px" }}>
           <InterlinearStrip verse={verse} selectedWord={selectedWord} onWordSelect={onWordSelect} />
         </div>
       )}
