@@ -240,7 +240,7 @@ export default function App() {
       let result: ScriptureVerse[] = [];
 
       if (lexVerses.length > 0) {
-        lexVerses.forEach(v => { v.text = verseTexts[v.verse] ?? ''; v.translation = 'ESV'; });
+        lexVerses.forEach(v => { v.text = verseTexts[v.verse] ?? ''; v.translation = 'ESV'; v.words = (v.words ?? []).map(cleanWord); });
         const interlinearNums = new Set(lexVerses.map(v => v.verse));
         const textOnlyVerses: ScriptureVerse[] = Object.entries(verseTexts)
           .filter(([n]) => !interlinearNums.has(parseInt(n)))
@@ -482,6 +482,27 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+// The lexicon data marks morpheme breaks ("/", "\\"), syllables (".") and
+// cantillation; strip those so words read cleanly on screen.
+function cleanOriginal(text: string) {
+  return text
+    .replace(/[\u0591-\u05AF\u05BD]/g, "") // Hebrew cantillation accents and meteg
+    .replace(/[\/\\\u05C3\u05BE:]/g, "") // morpheme breaks, sof pasuq, maqaf
+    .trim();
+}
+function cleanTransliteration(text: string) {
+  return text.replace(/[\/\\.]/g, "").replace(/-+$/, "").toLowerCase().trim();
+}
+function cleanGloss(text: string) {
+  const withoutUntranslated = text.replace(/<[^>]*>/g, "").replace(/[\[\]]/g, "").replace(/\s+/g, " ").trim();
+  if (withoutUntranslated) return withoutUntranslated;
+  const inner = text.replace(/[<>\[\]]/g, "").trim();
+  return inner === "obj." ? "(object marker)" : inner;
+}
+function cleanWord(w: OriginalWord): OriginalWord {
+  return { ...w, original: cleanOriginal(w.original), transliteration: cleanTransliteration(w.transliteration), gloss: cleanGloss(w.gloss) };
 }
 
 // ESV API returns verse numbers as "(1)" — split the passage block into individual verses.
@@ -799,15 +820,15 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
     return (
       <div>
         <p style={{ fontFamily: UI, fontSize: "0.85rem", color: "var(--muted-foreground)", marginBottom: "16px", lineHeight: 1.6 }}>Select a word to view its lexical entry.</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", direction: isHebrew ? "rtl" : "ltr" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: "6px", direction: isHebrew ? "rtl" : "ltr" }}>
           {verse.words.map(w => (
-            <button key={w.id} onClick={() => onWordSelect(w)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "6px 10px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--foreground)", direction: "ltr" }}
+            <button key={w.id} onClick={() => onWordSelect(w)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: "2px", padding: "8px 6px", minWidth: 0, borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer", color: "var(--foreground)", direction: "ltr", textAlign: "center" }}
               onMouseEnter={e => e.currentTarget.style.background = "var(--muted)"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}
             >
               <span style={{ fontFamily: origFont, fontSize: isHebrew ? "1.1rem" : "1rem", lineHeight: 1.3, direction: isHebrew ? "rtl" : "ltr" }}>{w.original}</span>
-              <span style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--muted-foreground)" }}>{w.transliteration}</span>
-              <span style={{ fontFamily: UI, fontSize: "0.72rem", fontWeight: 500, color: "var(--accent)" }}>{w.gloss}</span>
+              <span style={{ fontFamily: MONO, fontSize: "0.72rem", color: "var(--muted-foreground)", overflowWrap: "anywhere" }}>{w.transliteration}</span>
+              <span style={{ fontFamily: UI, fontSize: "0.72rem", fontWeight: 500, lineHeight: 1.3, color: "var(--accent)" }}>{w.gloss}</span>
             </button>
           ))}
         </div>
