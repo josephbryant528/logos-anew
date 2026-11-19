@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Inter, Lora, DM_Mono, Noto_Serif, Noto_Serif_Hebrew } from "next/font/google";
 
@@ -11,6 +11,20 @@ const notoSerifHebrew = Noto_Serif_Hebrew({ subsets: ["hebrew"], weight: ["300",
 export const metadata: Metadata = {
   title: "Verbum",
   description: "Scripture study with interlinear lexicon and sourced commentary",
+  applicationName: "Logos Anew",
+  appleWebApp: {
+    capable: true,
+    title: "Logos Anew",
+    statusBarStyle: "default",
+  },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#FFFFFF",
 };
 
 export default function RootLayout({

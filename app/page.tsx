@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 import {
   PASSAGES, BIBLE_BOOKS, BibleBook, OriginalWord, ScriptureVerse,
   getCommentariesForVerse, Commentary
@@ -159,7 +159,23 @@ function MarkdownText({ text }: { text: string }) {
   return <div style={{ fontFamily: BODY, fontSize: "0.875rem", color: "var(--foreground)" }}>{nodes}</div>;
 }
 
+// True on phone-sized screens. Starts false so the server and first client render match.
+const MOBILE_QUERY = "(max-width: 768px)";
+function subscribeMobile(onChange: () => void) {
+  const mq = window.matchMedia(MOBILE_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+function useIsMobile() {
+  return useSyncExternalStore(
+    subscribeMobile,
+    () => window.matchMedia(MOBILE_QUERY).matches,
+    () => false,
+  );
+}
+
 export default function App() {
+  const isMobile = useIsMobile();
   const [navLevel, setNavLevel] = useState<NavLevel>("top");
   const [navBook,  setNavBook]  = useState<BibleBook | null>(null);
 
@@ -253,6 +269,11 @@ export default function App() {
     }
   }, []);
 
+  // On a phone the book list starts hidden and opens as a slide-over menu.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const showSidebar = isMobile ? drawerOpen : sidebarOpen;
+  const closeDrawerOnMobile = () => { if (isMobile) setDrawerOpen(false); };
+
   useEffect(() => {
     fetchVerses(selectedBook, selectedChapter);
   }, [selectedBook, selectedChapter, fetchVerses]);
@@ -316,14 +337,15 @@ export default function App() {
     setActiveVerse(null);
     setSelectedWord(null);
     setHistory([]);
+    closeDrawerOnMobile();
   };
 
   return (
-    <div className={darkMode ? "dark" : ""} style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--background)", color: "var(--foreground)", fontFamily: UI }}>
+    <div className={darkMode ? "dark" : ""} style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "var(--background)", color: "var(--foreground)", fontFamily: UI, paddingBottom: "env(safe-area-inset-bottom)" }}>
 
       {/* Topbar */}
       <header style={{ height: "45px", display: "flex", alignItems: "center", gap: "8px", padding: "0 12px", borderBottom: "1px solid var(--border)", background: "var(--background)", flexShrink: 0 }}>
-        <button style={iconBtn} onClick={() => setSidebarOpen(o => !o)}
+        <button style={iconBtn} aria-label="Books and menu" onClick={() => isMobile ? setDrawerOpen(o => !o) : setSidebarOpen(o => !o)}
           onMouseEnter={e => (e.currentTarget.style.background = "var(--muted)")}
           onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
         >
@@ -340,14 +362,18 @@ export default function App() {
           </button>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: "4px", flex: 1, fontSize: "0.875rem" }}>
-          <span style={{ color: "var(--muted-foreground)" }}>Verbum</span>
-          <span style={{ color: "var(--border)" }}>/</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "4px", flex: 1, minWidth: 0, fontSize: "0.875rem", whiteSpace: "nowrap", overflow: "hidden" }}>
+          {!isMobile && (
+            <>
+              <span style={{ color: "var(--muted-foreground)" }}>Verbum</span>
+              <span style={{ color: "var(--border)" }}>/</span>
+            </>
+          )}
           {appMode === "bible" ? (
             <>
               <span style={{ color: "var(--foreground)", fontWeight: 500 }}>{selectedBook}</span>
               <span style={{ color: "var(--border)" }}>/</span>
-              <span style={{ color: "var(--foreground)", fontWeight: 500 }}>Chapter {selectedChapter}</span>
+              <span style={{ color: "var(--foreground)", fontWeight: 500 }}>{isMobile ? selectedChapter : `Chapter ${selectedChapter}`}</span>
             </>
           ) : appMode === "disciplines" ? (
             <span style={{ color: "var(--foreground)", fontWeight: 500 }}>Disciplines</span>
@@ -374,8 +400,14 @@ export default function App() {
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
 
         {/* Sidebar */}
-        {sidebarOpen && (
-          <aside style={{ width: "240px", flexShrink: 0, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+        {showSidebar && isMobile && (
+          <div onClick={() => setDrawerOpen(false)} aria-hidden
+            style={{ position: "fixed", inset: 0, top: "45px", background: "rgba(0,0,0,0.3)", zIndex: 39 }} />
+        )}
+        {showSidebar && (
+          <aside style={isMobile
+            ? { position: "fixed", top: "45px", left: 0, bottom: 0, width: "min(85vw, 300px)", zIndex: 40, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto", boxShadow: "2px 0 12px rgba(0,0,0,0.12)", paddingBottom: "env(safe-area-inset-bottom)" }
+            : { width: "240px", flexShrink: 0, background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
             {/* Mode switcher */}
             <div style={{ padding: "8px 0", borderBottom: "1px solid var(--sidebar-border)" }}>
               <SidebarItem
@@ -389,13 +421,13 @@ export default function App() {
                 icon={<Layers size={14} />}
                 label="Disciplines"
                 active={appMode === "disciplines"}
-                onClick={() => setAppMode("disciplines")}
+                onClick={() => { setAppMode("disciplines"); closeDrawerOnMobile(); }}
               />
               <SidebarItem
                 icon={<MessageCircle size={14} />}
                 label="Prayer Log"
                 active={appMode === "prayer"}
-                onClick={() => setAppMode("prayer")}
+                onClick={() => { setAppMode("prayer"); closeDrawerOnMobile(); }}
                 indent
               />
             </div>
@@ -429,14 +461,14 @@ export default function App() {
         {/* Main reading pane */}
         <main style={{ flex: 1, overflowY: "auto", display: appMode === "bible" ? "block" : "none" }}>
           {/* Tinted header band */}
-          <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: "48px 64px 36px" }}>
+          <div style={{ background: "rgba(46,170,220,0.05)", borderBottom: "1px solid rgba(46,170,220,0.1)", padding: isMobile ? "24px 20px 18px" : "48px 64px 36px" }}>
             <div style={{ maxWidth: "820px" }}>
               {currentBookMeta && (
                 <div style={{ fontFamily: MONO, fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--accent)", marginBottom: "10px" }}>
                   {currentBookMeta.testament === "OT" ? "Old Testament" : "New Testament"} · {langLabel(currentBookMeta.language)}
                 </div>
               )}
-              <h1 style={{ fontFamily: UI, fontSize: "2rem", fontWeight: 700, color: "var(--foreground)", marginBottom: "6px", lineHeight: 1.2 }}>
+              <h1 style={{ fontFamily: UI, fontSize: isMobile ? "1.6rem" : "2rem", fontWeight: 700, color: "var(--foreground)", marginBottom: "6px", lineHeight: 1.2 }}>
                 {selectedBook}
               </h1>
               <p style={{ fontFamily: UI, fontSize: "0.875rem", color: "var(--muted-foreground)", margin: 0 }}>
@@ -444,7 +476,7 @@ export default function App() {
               </p>
             </div>
           </div>
-          <div style={{ maxWidth: "820px", margin: "0 auto", padding: "40px 64px 120px" }}>
+          <div style={{ maxWidth: "820px", margin: "0 auto", padding: isMobile ? "16px 8px 96px" : "40px 64px 120px" }}>
 
             {versesLoading ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -476,7 +508,9 @@ export default function App() {
 
         {/* Detail panel */}
         {appMode === "bible" && activeVerse && (
-          <aside style={{ width: "380px", flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--background)", display: "flex", flexDirection: "column" }}>
+          <aside style={isMobile
+            ? { position: "fixed", top: "45px", left: 0, right: 0, bottom: 0, zIndex: 50, background: "var(--background)", display: "flex", flexDirection: "column", paddingBottom: "env(safe-area-inset-bottom)" }
+            : { width: "380px", flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--background)", display: "flex", flexDirection: "column" }}>
             <DetailPanel
               verse={activeVerse}
               commentaries={commentaries}
