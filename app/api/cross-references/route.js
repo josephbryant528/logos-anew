@@ -1,9 +1,13 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { headers } from 'next/headers'
 
+// Returns the ESV text for a short list of verse references in one ESV API call.
+// The references themselves come from the build-time concordance in
+// public/concordance, so no AI call is involved.
+
 const rateLimitStore = new Map()
-const RATE_LIMIT     = 40
+const RATE_LIMIT     = 120
 const RATE_WINDOW_MS = 60 * 60 * 1000
+const MAX_REFS       = 25
 
 function checkRateLimit(ip) {
   const now   = Date.now()
@@ -16,6 +20,8 @@ function checkRateLimit(ip) {
   entry.count++
   return true
 }
+
+const REF_PATTERN = /^[1-3]?\s?[A-Za-z][A-Za-z ]{1,24} \d{1,3}:\d{1,3}$/
 
 export async function POST(request) {
   const headersList = await headers()
@@ -35,66 +41,50 @@ export async function POST(request) {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { strongsNumber, lemma, original, transliteration, gloss, testament, currentVerse } = body
-
-  if (!strongsNumber || !testament) {
-    return Response.json({ error: 'strongsNumber and testament are required.' }, { status: 400 })
+  const references = Array.isArray(body?.references) ? body.references : null
+  if (!references || references.length === 0 || references.length > MAX_REFS ||
+      !references.every(r => typeof r === 'string' && REF_PATTERN.test(r))) {
+    return Response.json({ error: `references must be 1-${MAX_REFS} verse references.` }, { status: 400 })
   }
 
-  const testamentLabel = testament === 'OT' ? 'Old Testament' : 'New Testament'
+  const params = new URLSearchParams({
+    q: references.join(';'),
+    'include-headings': 'false',
+    'include-footnotes': 'false',
+    'include-verse-numbers': 'false',
+    'include-short-copyright': 'false',
+    'include-copyright': 'false',
+    'include-passage-references': 'false',
+    'include-selahs': 'false',
+    'indent-poetry': 'false',
+    'indent-paragraphs': '0',
+  })
 
-  const prompt = `You are a biblical concordance. Find occurrences of the following original language word across the ${testamentLabel}.
-
-Word: ${original} (${transliteration})
-Strong's number: ${strongsNumber}
-Lemma: ${lemma}
-Gloss: "${gloss}"
-Exclude this verse: ${currentVerse}
-
-Return ONLY valid JSON in this exact format, with no other text before or after:
-{
-  "totalCount": <integer — your best estimate of how many times this lemma appears in the ${testamentLabel}>,
-  "results": [
-    {"reference": "<Book Chapter:Verse>", "quote": "<complete exact ESV text of that verse>", "highlight": "<the exact word or short phrase, copied character-for-character from quote, that translates ${original} in this verse>"},
-    ...up to 25 results
-  ]
-}
-
-Rules:
-- Only include verses where Strong's ${strongsNumber} or a morphological variant of the same root lemma appears
-- The "quote" field must contain the complete, verbatim ESV wording of that verse — never summarize, shorten, or paraphrase scripture
-- Prioritize theologically significant and contextually varied occurrences across different books
-- Search only within the ${testamentLabel}
-- Do not include the verse ${currentVerse}
-- "highlight" must appear verbatim inside "quote" (same spelling and capitalization), usually one to three English words
-- Use standard English book names (e.g. "Genesis", "1 Kings", "Song of Solomon", "Revelation")`
-
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-  let message
+  let esvRes
   try {
-    message = await client.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 4096,
-      messages:   [{ role: 'user', content: prompt }],
+    esvRes = await fetch(`https://api.esv.org/v3/passage/text/?${params.toString()}`, {
+      headers: { Authorization: `Token ${process.env.ESV_API_KEY}` },
     })
-  } catch (err) {
-    const status = err.status ?? 500
-    const detail = err.error?.error?.message ?? err.message ?? 'Anthropic API error'
-    return Response.json({ error: detail }, { status })
-  }
-
-  const raw = message.content[0]?.type === 'text' ? message.content[0].text : ''
-
-  // Strip markdown code fences if Claude wraps the response
-  const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-
-  let data
-  try {
-    data = JSON.parse(cleaned)
   } catch {
-    return Response.json({ error: 'Failed to parse AI response.' }, { status: 500 })
+    return Response.json({ error: 'Could not reach the ESV API.' }, { status: 502 })
+  }
+  if (!esvRes.ok) {
+    return Response.json({ error: 'ESV API request failed.' }, { status: esvRes.status })
   }
 
-  return Response.json(data)
+  const data     = await esvRes.json()
+  const passages = data.passages ?? []
+  const meta     = data.passage_meta ?? []
+  // ESV returns one passage per requested reference, in order. If it ever merges
+  // them, fall back to its own canonical names so each quote keeps a correct label.
+  const aligned  = passages.length === references.length
+
+  const results = passages
+    .map((text, i) => ({
+      reference: aligned ? references[i] : (meta[i]?.canonical ?? references[i]),
+      quote:     String(text).replace(/\s+/g, ' ').trim(),
+    }))
+    .filter(r => r.quote.length > 0)
+
+  return Response.json({ results })
 }

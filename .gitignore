@@ -46,6 +46,7 @@ smoke-screenshots/
 
 # lexicon data — generated at build time from STEPBible CC BY 4.0 source
 /public/lexicon/
+/public/concordance/
 
 # commentary data — generated at build time from MHCC (Public Domain)
 /public/commentaries/

@@ -731,13 +731,70 @@ interface CrossRef { reference: string; quote: string; highlight?: string }
 
 // Bold the English word(s) in a verse that translate the word being searched.
 // Uses the phrase the AI marked; falls back to the word's English gloss.
+// Build-time concordance (scripts/build-concordance.mjs): one static file per
+// hundred Strong's numbers, so finding every occurrence of a word is a single
+// cached file read instead of an AI call.
+type ConcordanceEntry = { total: number; refs: [string, string][] };
+const concordanceFiles = new Map<string, Promise<Record<string, ConcordanceEntry>>>();
+const crossRefCache    = new Map<string, { total: number; results: CrossRef[] }>();
+
+function concordanceKey(strongs: string) {
+  return (strongs || "").replace(/_[A-Z]$/, "");
+}
+function concordanceBucket(key: string) {
+  const m = key.match(/^([GH])(\d+)/);
+  return m ? `${m[1]}${Math.floor(Number(m[2]) / 100)}` : null;
+}
+function loadConcordanceFile(bucket: string) {
+  let p = concordanceFiles.get(bucket);
+  if (!p) {
+    p = fetch(`/concordance/${bucket}.json`).then(r => {
+      if (!r.ok) throw new Error("concordance unavailable");
+      return r.json();
+    });
+    p.catch(() => concordanceFiles.delete(bucket));
+    concordanceFiles.set(bucket, p);
+  }
+  return p;
+}
+// Pick up to `limit` references, taking one book at a time in canonical order
+// so the list shows the word across Scripture rather than 25 verses of one book.
+function spreadAcrossBooks(refs: [string, string][], limit: number) {
+  const byBook = new Map<string, [string, string][]>();
+  for (const r of refs) {
+    const book = r[0].replace(/\s+\d+:\d+$/, "");
+    if (!byBook.has(book)) byBook.set(book, []);
+    byBook.get(book)!.push(r);
+  }
+  const queues = [...byBook.values()];
+  const picked: [string, string][] = [];
+  for (let round = 0; picked.length < limit && queues.some(q => q.length > round); round++) {
+    for (const q of queues) {
+      if (picked.length >= limit) break;
+      if (q[round]) picked.push(q[round]);
+    }
+  }
+  const order = new Map(refs.map((r, i) => [r[0], i]));
+  return picked.sort((a, b) => order.get(a[0])! - order.get(b[0])!);
+}
+
+const HIGHLIGHT_SKIP = new Set(["a","an","the","of","to","in","on","for","and","or","but","is","was","be","are","were","will","shall","you","he","she","it","they","we","i","me","him","them","us","my","his","her","their","your","our","do","did","does","not","with","from","by","as","at","this","that","these","those","who","which","what","have","has","had","been","let","may"]);
+
 function HighlightedQuote({ quote, highlight, gloss }: { quote: string; highlight?: string; gloss?: string }) {
-  const candidates = [highlight, gloss]
-    .map(t => (t ?? "").replace(/[<>\[\]]/g, "").replace(/[.,;:!?"'\u2018\u2019\u201c\u201d]+$/g, "").trim())
+  const phrases = [highlight, gloss]
+    .map(t => (t ?? "").replace(/<[^>]*>/g, " ").replace(/[\[\]]/g, "").replace(/[.,;:!?"'\u2018\u2019\u201c\u201d]+$/g, "").replace(/\s+/g, " ").trim())
     .filter(t => t.length > 0);
-  for (const term of candidates) {
+  // Whole phrase first, then its meaningful words (longest first), letting a
+  // word of 4+ letters match with an ending, e.g. "love" finds "loved".
+  const words = phrases
+    .flatMap(p => p.split(/[\s\-/]+/))
+    .map(w => w.replace(/[^A-Za-z']/g, ""))
+    .filter(w => w.length > 2 && !HIGHLIGHT_SKIP.has(w.toLowerCase()))
+    .sort((a, b) => b.length - a.length);
+  const candidates = [...phrases.map(t => ({ term: t, stem: false })), ...words.map(t => ({ term: t, stem: t.length >= 4 }))];
+  for (const { term, stem } of candidates) {
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`(^|[^A-Za-z])(${escaped})(?![A-Za-z])`, "i");
+    const re = new RegExp(`(^|[^A-Za-z])(${escaped}${stem ? "[a-z]{0,3}" : ""})(?![A-Za-z])`, "i");
     const m = re.exec(quote);
     if (m) {
       const start = m.index + m[1].length;
@@ -783,37 +840,53 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
       setCrossRefExpanded(false);
       return;
     }
-    const bookMeta = BIBLE_BOOKS.find(b => b.name === verse.book);
-    const testament = bookMeta?.testament ?? "NT";
     const currentVerse = `${verse.book} ${verse.chapter}:${verse.verse}`;
+    const key = concordanceKey(selectedWord.strongsNumber);
+    const cacheKey = `${key}|${currentVerse}`;
 
+    setCrossRefExpanded(false);
+    setCrossRefError(null);
+    const cached = crossRefCache.get(cacheKey);
+    if (cached) {
+      setCrossRefTotal(cached.total);
+      setCrossRefs(cached.results);
+      setCrossRefLoading(false);
+      return;
+    }
     setCrossRefs([]);
     setCrossRefTotal(null);
-    setCrossRefError(null);
-    setCrossRefExpanded(false);
     setCrossRefLoading(true);
 
-    fetch("/api/cross-references", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        strongsNumber:  selectedWord.strongsNumber,
-        lemma:          selectedWord.lemma,
-        original:       selectedWord.original,
-        transliteration: selectedWord.transliteration,
-        gloss:          selectedWord.gloss,
-        testament,
-        currentVerse,
-      }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.error) { setCrossRefError(data.error); return; }
-        setCrossRefTotal(data.totalCount ?? null);
-        setCrossRefs(Array.isArray(data.results) ? data.results : []);
-      })
-      .catch(() => setCrossRefError("Failed to load cross-references."))
-      .finally(() => setCrossRefLoading(false));
+    let cancelled = false;
+    const bucket = concordanceBucket(key);
+    (async () => {
+      if (!bucket) throw new Error("No concordance entry for this word.");
+      const file  = await loadConcordanceFile(bucket);
+      const refs  = (file[key]?.refs ?? []).filter(r => r[0] !== currentVerse);
+      if (cancelled) return;
+      setCrossRefTotal(refs.length);
+      if (refs.length === 0) { crossRefCache.set(cacheKey, { total: 0, results: [] }); return; }
+
+      const picked = spreadAcrossBooks(refs, 25);
+      const glossFor = new Map(picked.map(r => [r[0], cleanGloss(r[1])]));
+      const res  = await fetch("/api/cross-references", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ references: picked.map(r => r[0]) }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const results: CrossRef[] = (Array.isArray(data.results) ? data.results : []).map((r: CrossRef) => ({
+        ...r,
+        highlight: glossFor.get(r.reference),
+      }));
+      crossRefCache.set(cacheKey, { total: refs.length, results });
+      if (!cancelled) setCrossRefs(results);
+    })()
+      .catch(err => { if (!cancelled) setCrossRefError(err instanceof Error && err.message ? err.message : "Failed to load cross-references."); })
+      .finally(() => { if (!cancelled) setCrossRefLoading(false); });
+
+    return () => { cancelled = true; };
   }, [selectedWord, verse.book, verse.chapter, verse.verse]);
 
   if (!selectedWord) {
@@ -865,7 +938,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
           </div>
           {crossRefTotal !== null && (
             <span style={{ fontFamily: MONO, fontSize: "0.68rem", color: "var(--muted-foreground)" }}>
-              ~{crossRefTotal.toLocaleString()}×
+              {crossRefTotal.toLocaleString()}×
             </span>
           )}
         </div>
@@ -876,7 +949,7 @@ function LexiconTab({ verse, selectedWord, onWordSelect, onNavigateTo, onCrossRe
               <div key={i} style={{ height: "70px", borderRadius: "6px", background: "var(--muted)", opacity: 0.4 + i * 0.1, animation: "pulse 1.4s ease-in-out infinite" }} />
             ))}
             <p style={{ fontFamily: UI, fontSize: "0.75rem", color: "var(--muted-foreground)", margin: "4px 0 0", fontStyle: "italic" }}>
-              Searching {BIBLE_BOOKS.find(b => b.name === verse.book)?.testament === "OT" ? "Old" : "New"} Testament…
+              {crossRefTotal !== null ? "Loading verses…" : `Searching ${BIBLE_BOOKS.find(b => b.name === verse.book)?.testament === "OT" ? "Old" : "New"} Testament…`}
             </p>
           </div>
         )}
