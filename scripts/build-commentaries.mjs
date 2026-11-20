@@ -103,7 +103,7 @@ function download(url, dest) {
 
 const HEADING_RE = /^Verses? (\d+)(?:\s*[-,]\s*(\d+))?\s*$/   // column 0 only
 const CHAPTER_RE = /^Chapter (\d+)\s*$/                          // column 0 only
-const INLINE_RE = /^(?:[1-3] ?)?[A-Z][a-z]*\.? (\d+):(\d+)(?:-(?:(\d+):)?(\d+))? /
+const INLINE_RE = /^(?:[1-3] ?)?[A-Z][a-z]*\.? (\d+):(\d+)(?:-(?:(\d+):)?(\d+))?\.? /
 const TRAILING_REF_RE = /\s*\((?:[1-3] ?)?[A-Z][a-z]{1,4} (\d+):(\d+)(?:-(\d+))?\)$/
 
 function paragraphs(lines) {
@@ -183,6 +183,8 @@ export function parseMHCC(text, stats = {}) {
         return m && Number(m[1]) === chapter ? m : null
       })
       if (inline.some(Boolean)) {
+        const first = inline.findIndex(Boolean)
+        if (first > 1) (stats.droppedBeforeMarker ||= []).push(`${key}: ${first}`)
         let cur = null
         const flush = () => { if (cur) { const t = tidy(cur.paras, chapter); if (t) entries.push({ verseStart: cur.verseStart, verseEnd: cur.verseEnd, text: t }) } }
         paras.forEach((p, idx) => {
