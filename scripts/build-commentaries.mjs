@@ -103,6 +103,7 @@ function download(url, dest) {
 
 const HEADING_RE = /^Verses? (\d+)(?:\s*[-,]\s*(\d+))?\s*$/   // column 0 only
 const CHAPTER_RE = /^Chapter (\d+)\s*$/                          // column 0 only
+const INLINE_RE = /^(?:[1-3] ?)?[A-Z][a-z]*\.? (\d+):(\d+)(?:-(?:(\d+):)?(\d+))? /
 const TRAILING_REF_RE = /\s*\((?:[1-3] ?)?[A-Z][a-z]{1,4} (\d+):(\d+)(?:-(\d+))?\)$/
 
 function paragraphs(lines) {
@@ -170,9 +171,32 @@ export function parseMHCC(text, stats = {}) {
         if (t) entries.push({ verseStart: s.verseStart, verseEnd: s.verseEnd, text: t })
       }
     } else {
+      const paras = paragraphs(pre)
+      // From Ecclesiastes on, sections are marked inside the text instead:
+      // a paragraph opening with "Is. 2:1-9 " starts the section on those verses.
+      const inline = paras.map(p => {
+        const m = p.match(INLINE_RE)
+        return m && Number(m[1]) === chapter ? m : null
+      })
+      if (inline.some(Boolean)) {
+        let cur = null
+        const flush = () => { if (cur) { const t = tidy(cur.paras, chapter); if (t) entries.push({ verseStart: cur.verseStart, verseEnd: cur.verseEnd, text: t }) } }
+        paras.forEach((p, idx) => {
+          const m = inline[idx]
+          if (m) {
+            flush()
+            const a = parseInt(m[2])
+            const b = m[4] ? (m[3] && Number(m[3]) !== chapter ? 999 : parseInt(m[4])) : a
+            cur = { verseStart: a, verseEnd: Math.max(a, b), paras: [p.slice(m[0].length)] }
+          } else if (cur) cur.paras.push(p)
+        })
+        flush()
+        if (entries.length) chapters.set(key, { book, chapter, entries })
+        block = []
+        return
+      }
       // No sections. Usually a one-line summary of the chapter comes first and the
       // commentary opens with "--"; some chapters are a single paragraph.
-      const paras = paragraphs(pre)
       let start = paras.findIndex(p => p.startsWith('--'))
       if (start < 0) start = paras.length > 1 && paras[0].length < 200 ? 1 : 0
       if (start > 0 && !paras[start].startsWith('--')) stats.unsectioned.push(`${key}: [${paras.slice(0, start).join(' / ').slice(0, 70)}] ${paras[start].slice(0, 50)}`)
