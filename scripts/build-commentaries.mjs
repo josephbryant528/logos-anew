@@ -138,10 +138,13 @@ export function parseMHCC(text, stats = {}) {
   stats.outlineWithText = []
   stats.dividerless = []
 
-  let book = null, chapter = null, block = []
+  let book = null, chapter = null, block = [], implicitChapter = false
 
   function flushChapter() {
+    const implicit = implicitChapter
+    implicitChapter = false
     if (!book || !chapter) { block = []; return }
+    if (implicit && !block.some(l => HEADING_RE.test(l))) { block = []; return }
     const key = `${bookSlug(book)}-${chapter}`
     const entries = []
     // Split the chapter into sections at each "Verses" heading.
@@ -167,11 +170,13 @@ export function parseMHCC(text, stats = {}) {
         if (t) entries.push({ verseStart: s.verseStart, verseEnd: s.verseEnd, text: t })
       }
     } else {
-      // No sections: first paragraph is the chapter's summary line, the rest is the commentary.
+      // No sections. Usually a one-line summary of the chapter comes first and the
+      // commentary opens with "--"; some chapters are a single paragraph.
       const paras = paragraphs(pre)
-      const body = paras.slice(1)
-      stats.unsectioned.push(`${key}: ${paras[0]?.slice(0, 60)}`)
-      const t = tidy(body, chapter)
+      let start = paras.findIndex(p => p.startsWith('--'))
+      if (start < 0) start = paras.length > 1 && paras[0].length < 200 ? 1 : 0
+      if (start > 0 && !paras[start].startsWith('--')) stats.unsectioned.push(`${key}: [${paras.slice(0, start).join(' / ').slice(0, 70)}] ${paras[start].slice(0, 50)}`)
+      const t = tidy(paras.slice(start), chapter)
       if (t) entries.push({ verseStart: 1, verseEnd: 999, wholeChapter: true, text: t })
     }
     if (entries.length) chapters.set(key, { book, chapter, entries })
@@ -189,7 +194,11 @@ export function parseMHCC(text, stats = {}) {
       if (matched) {
         flushChapter()
         book = matched
-        chapter = null
+        // A few books (2 Kings, 2 Chronicles) go straight into chapter 1 with no
+        // "Chapter 1" line. Hold the text as chapter 1; it is dropped as a book
+        // introduction unless it turns out to have "Verses" sections.
+        chapter = 1
+        implicitChapter = true
         i = j
         continue
       }
