@@ -83,99 +83,143 @@ function download(url, dest) {
 }
 
 // ── Parse MHCC plain text ─────────────────────────────────────────────────────
+//
+// Layout of the CCEL file (checked against the full text, Nov 2026):
+//   ______________________            <- divider before each book
+//                 2 Kings             <- centred book name, then a book intro
+//   Chapter 18                        <- column 0
+//      Chapter Outline                <- outline lines, each with a "(1-8)" range
+//   Verses 1-8                        <- column 0; commentary lines are indented
+//
+// Chapters that are not divided into sections have no "Verses" lines: a short
+// summary line, then the commentary, which opens with "--".
+//
+// The text is reproduced word for word. The only changes are layout:
+// - wrapped lines are joined, paragraph breaks are kept;
+// - "--" (the plain-text stand-in for a dash) becomes "—";
+// - a "(Job 1:20-22)" style marker at the very end of a section is dropped.
+//   CCEL puts these after a section as a link to the next one; they are not
+//   part of Henry's sentence.
 
-function parseMHCC(text) {
-  // Result: Map<bookSlug-chapter, { book, chapter, entries: [{verseStart, verseEnd, text}] }>
+const HEADING_RE = /^Verses? (\d+)(?:\s*[-,]\s*(\d+))?\s*$/   // column 0 only
+const CHAPTER_RE = /^Chapter (\d+)\s*$/                          // column 0 only
+const TRAILING_REF_RE = /\s*\((?:[1-3] ?)?[A-Z][a-z]{1,4} (\d+):(\d+)(?:-(\d+))?\)$/
+
+function paragraphs(lines) {
+  const paras = []
+  let cur = []
+  for (const l of lines) {
+    if (l.trim() === '') { if (cur.length) { paras.push(cur.join(' ')); cur = [] } }
+    else cur.push(l.trim())
+  }
+  if (cur.length) paras.push(cur.join(' '))
+  return paras.map(p => p.replace(/\s+/g, ' ').trim()).filter(Boolean)
+}
+
+function tidy(paras, chapter) {
+  let text = paras.join('\n\n')
+  const m = text.match(TRAILING_REF_RE)
+  if (m && Number(m[1]) === chapter) text = text.slice(0, m.index)
+  text = text.replace(/^--\s*/, '').replace(/--/g, '—')
+  return text.trim()
+}
+
+export function parseMHCC(text, stats = {}) {
+  // Result: Map<bookSlug-chapter, { book, chapter, entries: [{verseStart, verseEnd, wholeChapter?, text}] }>
   const chapters = new Map()
+  const lines = text.split(/\r?\n/)
 
-  const lines = text.split('\n')
-  let currentBook    = null
-  let currentChapter = null
-  let currentVerses  = null
-  let currentText    = []
-
-  // Build a set of all recognized book names (including aliases) for fast lookup
   const bookByAlias = new Map()
   for (const book of BOOKS) {
-    const aliases = BOOK_ALIASES[book] ?? [book]
-    for (const alias of aliases) bookByAlias.set(alias.trim(), book)
+    for (const alias of BOOK_ALIASES[book] ?? [book]) bookByAlias.set(alias.trim(), book)
   }
 
-  function saveCurrentEntry() {
-    if (!currentBook || !currentChapter || !currentVerses) return
-    const txt = currentText.join(' ').replace(/\s+/g, ' ').trim()
-    if (!txt) return
-    const key = `${bookSlug(currentBook)}-${currentChapter}`
-    if (!chapters.has(key)) {
-      chapters.set(key, { book: currentBook, chapter: currentChapter, entries: [] })
+  stats.unsectioned = []
+  stats.outlineWithText = []
+  stats.dividerless = []
+
+  let book = null, chapter = null, block = []
+
+  function flushChapter() {
+    if (!book || !chapter) { block = []; return }
+    const key = `${bookSlug(book)}-${chapter}`
+    const entries = []
+    // Split the chapter into sections at each "Verses" heading.
+    let pre = [], section = null
+    const sections = []
+    for (const l of block) {
+      const h = l.match(HEADING_RE)
+      if (h) {
+        if (section) sections.push(section)
+        const a = parseInt(h[1]), b = h[2] ? parseInt(h[2]) : a
+        section = { verseStart: Math.min(a, b), verseEnd: Math.max(a, b), lines: [] }
+      } else if (section) section.lines.push(l)
+      else pre.push(l)
     }
-    chapters.get(key).entries.push({ ...currentVerses, text: txt })
-    currentText = []
+    if (section) sections.push(section)
+
+    if (sections.length) {
+      // Everything before the first heading is the chapter outline.
+      const preParas = paragraphs(pre).filter(p => p !== 'Chapter Outline' && !/^\([\d,\s-]+\)$/.test(p))
+      if (!pre.some(l => l.trim() === 'Chapter Outline') && preParas.length) stats.outlineWithText.push(key)
+      for (const s of sections) {
+        const t = tidy(paragraphs(s.lines), chapter)
+        if (t) entries.push({ verseStart: s.verseStart, verseEnd: s.verseEnd, text: t })
+      }
+    } else {
+      // No sections: first paragraph is the chapter's summary line, the rest is the commentary.
+      const paras = paragraphs(pre)
+      const body = paras.slice(1)
+      stats.unsectioned.push(`${key}: ${paras[0]?.slice(0, 60)}`)
+      const t = tidy(body, chapter)
+      if (t) entries.push({ verseStart: 1, verseEnd: 999, wholeChapter: true, text: t })
+    }
+    if (entries.length) chapters.set(key, { book, chapter, entries })
+    block = []
   }
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]
     const line = raw.trim()
 
-    // Detect book heading: ____ divider followed by blank line then centered book name
-    if (line.startsWith('___')) {
-      // Skip blank line(s), then check for centered book name
+    if (/^_{5,}$/.test(line)) {
       let j = i + 1
       while (j < lines.length && lines[j].trim() === '') j++
-      const candidate = (lines[j] ?? '').trim()
-      const matched   = bookByAlias.get(candidate)
+      const matched = bookByAlias.get((lines[j] ?? '').trim())
       if (matched) {
-        saveCurrentEntry()
-        currentBook    = matched
-        currentChapter = null
-        currentVerses  = null
-        currentText    = []
-        i = j  // advance past the book name line
+        flushChapter()
+        book = matched
+        chapter = null
+        i = j
         continue
       }
-    }
-
-    // Detect chapter heading (no leading spaces)
-    const chapterMatch = line.match(/^Chapter (\d+)$/)
-    if (chapterMatch) {
-      saveCurrentEntry()
-      currentChapter = parseInt(chapterMatch[1])
-      currentVerses  = null
-      currentText    = []
+      // A divider that is not a book heading ends the current chapter's text.
+      if (chapter) { flushChapter(); chapter = null }
+      // The indexes follow Revelation; stop there.
+      if (/^Index(es)?\b/.test((lines[j] ?? '').trim())) break
       continue
     }
 
-    // Detect verse range heading
-    const verseMatch = line.match(/^Verses? (\d+)(?:[,\-]\s*(\d+))?/)
-    if (verseMatch && currentChapter) {
-      saveCurrentEntry()
-      const start = parseInt(verseMatch[1])
-      const end   = verseMatch[2] ? parseInt(verseMatch[2]) : start
-      currentVerses = { verseStart: start, verseEnd: end }
-      currentText   = []
+    const c = raw.match(CHAPTER_RE)
+    if (c && book) {
+      flushChapter()
+      chapter = parseInt(c[1])
       continue
     }
 
-    // Skip chapter outline tables (lines that are just numbers in parens)
-    if (line.match(/^\(\d+(?:,\s*\d+)*\)$/) || line.match(/^\(\d+\-\d+\)$/)) continue
-
-    // Skip the "Chapter Outline" header itself
-    if (line === 'Chapter Outline') continue
-
-    // Accumulate text for current verse entry
-    if (currentVerses && line.length > 0 && !line.startsWith('_')) {
-      currentText.push(line)
-    }
+    if (chapter) block.push(raw)
   }
-  saveCurrentEntry()
-
+  flushChapter()
   return chapters
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const sentinel = path.join(OUT_DIR, 'john-1.json')
-if (fs.existsSync(sentinel)) {
+// Bump when the parser changes so old generated files are rebuilt.
+const FORMAT_VERSION = '2'
+const sentinel = path.join(OUT_DIR, '.version')
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (fs.existsSync(sentinel) && fs.readFileSync(sentinel, 'utf8').trim() === FORMAT_VERSION) {
   console.log('Commentary files already present — skipping build.')
   process.exit(0)
 }
@@ -188,6 +232,8 @@ if (!fs.existsSync(CACHE)) {
   console.log(' done')
 }
 
+for (const f of fs.readdirSync(OUT_DIR)) if (f.endsWith('.json')) fs.unlinkSync(path.join(OUT_DIR, f))
+
 const text = fs.readFileSync(CACHE, 'utf8')
 const chapters = parseMHCC(text)
 
@@ -198,5 +244,8 @@ for (const [key, data] of chapters) {
   fileCount++
 }
 
+fs.writeFileSync(sentinel, FORMAT_VERSION)
+
 console.log(`Done — ${fileCount} chapter files written to public/commentaries/`)
 console.log(`       (${chapters.size} chapters found in source, ${fileCount} with content)`)
+}
