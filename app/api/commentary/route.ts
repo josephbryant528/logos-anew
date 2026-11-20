@@ -5,6 +5,7 @@ import fs from 'fs'
 interface CommentaryEntry {
   verseStart: number
   verseEnd: number
+  wholeChapter?: boolean
   text: string
 }
 

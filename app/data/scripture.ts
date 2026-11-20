@@ -38,6 +38,7 @@ export interface Commentary {
   verseKey: string;
   verseStart?: number;
   verseEnd?: number;
+  wholeChapter?: boolean;
   text: string;
 }
 

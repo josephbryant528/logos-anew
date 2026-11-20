@@ -17,8 +17,13 @@ export function CommentaryTab({ commentaries, verseKey }: { commentaries: Commen
             These are <strong style={{ color: "var(--foreground)" }}>scholarly interpretations</strong>, not Scripture. Evaluate alongside the biblical text.
           </div>
           {commentaries.map((c, i) => {
-            const range = c.verseStart !== undefined && c.verseEnd !== undefined && c.verseEnd > c.verseStart
-              ? `On verses ${c.verseStart}–${c.verseEnd}` : null;
+            const range = c.wholeChapter
+              ? 'On the whole chapter'
+              : c.verseStart !== undefined && c.verseEnd !== undefined && c.verseEnd > c.verseStart
+                ? c.verseEnd >= 999
+                  ? `On verse ${c.verseStart} to the end`
+                  : `On verses ${c.verseStart}–${c.verseEnd}`
+                : null;
             return (
               <article key={c.id} style={{ paddingBottom: "20px", marginBottom: "20px", borderBottom: i < commentaries.length - 1 ? "1px solid var(--border)" : "none" }}>
                 <h3 style={{ fontFamily: UI, fontSize: "0.9rem", fontWeight: 600, color: "var(--foreground)", margin: "0 0 2px" }}>{c.author}</h3>

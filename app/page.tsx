@@ -90,7 +90,7 @@ export default function App() {
 
       // Cache commentary entries for this chapter
       if (comData?.entries?.length > 0) {
-        const entries: Commentary[] = comData.entries.map((e: { verseStart: number; verseEnd: number; text: string }, i: number) => ({
+        const entries: Commentary[] = comData.entries.map((e: { verseStart: number; verseEnd: number; wholeChapter?: boolean; text: string }, i: number) => ({
           id:         `mhcc-${bookSlugLocal(book)}-${chapter}-${i}`,
           source:     comData.source,
           author:     comData.author,
@@ -98,6 +98,7 @@ export default function App() {
           verseKey:   `${book} ${chapter}:${e.verseStart}`,
           verseStart: e.verseStart,
           verseEnd:   e.verseEnd,
+          wholeChapter: e.wholeChapter,
           text:       e.text,
         }));
         commentaryCache.current.set(cacheKey, entries);
