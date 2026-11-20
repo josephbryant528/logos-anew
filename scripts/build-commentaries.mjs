@@ -145,7 +145,11 @@ export function parseMHCC(text, stats = {}) {
     const implicit = implicitChapter
     implicitChapter = false
     if (!book || !chapter) { block = []; return }
-    if (implicit && !block.some(l => HEADING_RE.test(l))) { block = []; return }
+    if (implicit) {
+      const looksLikeChapter = block.some(l => HEADING_RE.test(l)) || paragraphs(block).some(p => p.startsWith('--'))
+      if (!looksLikeChapter) { block = []; return }
+      ;(stats.implicitChapter1 ||= []).push(book)
+    }
     const key = `${bookSlug(book)}-${chapter}`
     const entries = []
     // Split the chapter into sections at each "Verses" heading.
@@ -220,7 +224,7 @@ export function parseMHCC(text, stats = {}) {
         book = matched
         // A few books (2 Kings, 2 Chronicles) go straight into chapter 1 with no
         // "Chapter 1" line. Hold the text as chapter 1; it is dropped as a book
-        // introduction unless it turns out to have "Verses" sections.
+        // introduction unless it has "Verses" sections or a "--" commentary.
         chapter = 1
         implicitChapter = true
         i = j
